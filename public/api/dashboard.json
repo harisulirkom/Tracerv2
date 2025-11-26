@@ -1,0 +1,48 @@
+{
+  "baseTotalResponses": 1386,
+  "baseCompletionRate": 74,
+  "activeCampaignCount": 5,
+  "employmentRate": 69,
+  "campaignSummary": "Email / WhatsApp / Portal / QR",
+  "heroChips": [
+    "Email kampus",
+    "Portal alumni",
+    "Integrasi SIAKAD",
+    "Survey tracer 2025"
+  ],
+  "referenceRows": [
+    { "nama": "Laras P.", "prodi": "DKV", "angkatan": "2019", "status": "Bekerja", "waktu": "2 bln", "gaji": "8 jt" },
+    { "nama": "Yudha M.", "prodi": "Teknik Industri", "angkatan": "2018", "status": "Wirausaha", "waktu": "3 bln", "gaji": "11 jt" },
+    { "nama": "Mega A.", "prodi": "Psikologi", "angkatan": "2020", "status": "Melanjutkan studi", "waktu": "-", "gaji": "-" },
+    { "nama": "Rafi R.", "prodi": "Hukum", "angkatan": "2019", "status": "Bekerja", "waktu": "1 bln", "gaji": "9 jt" }
+  ],
+  "followUpTasks": [
+    { "title": "Blast QR wisuda", "channel": "QR Poster", "due": "Hari ini, 13.00", "status": "Terjadwal" },
+    { "title": "Sinkron prodi vokasi", "channel": "Email", "due": "Hari ini, 16.00", "status": "Butuh data" },
+    { "title": "Coaching tracer BEM", "channel": "Portal", "due": "Sabtu, 09.00", "status": "Selesai" }
+  ],
+  "channelPerformance": [
+    { "label": "Email kampus", "completion": 77, "trend": "+5%", "color": "from-teal-500 to-emerald-400" },
+    { "label": "WhatsApp blast", "completion": 85, "trend": "+9%", "color": "from-emerald-500 to-lime-400" },
+    { "label": "Portal alumni", "completion": 61, "trend": "+1%", "color": "from-cyan-500 to-blue-500" }
+  ],
+  "cohortProgress": [
+    { "cohort": "2019", "completion": 81, "total": 405 },
+    { "cohort": "2020", "completion": 69, "total": 380 },
+    { "cohort": "2021", "completion": 58, "total": 498 }
+  ],
+  "jobDistribution": [
+    { "label": "Bekerja", "percent": 69, "color": "bg-emerald-500" },
+    { "label": "Wirausaha", "percent": 13, "color": "bg-amber-500" },
+    { "label": "Melanjutkan studi", "percent": 8, "color": "bg-indigo-500" },
+    { "label": "Mencari kerja", "percent": 10, "color": "bg-rose-500" }
+  ],
+  "baseActivity": [
+    { "title": "Sinkron SIAKAD", "detail": "Data lulusan 2024 diperbarui", "time": "Hari ini 09.00", "icon": "IT" },
+    { "title": "Tim prodi Teknik login", "detail": "Update status tracer", "time": "Kemarin 16.20", "icon": "TK" },
+    { "title": "Reminder WhatsApp batch 2", "detail": "Terkirim ke 380 alumni", "time": "Kemarin 14.05", "icon": "WA" }
+  ],
+  "summaryCards": [
+    { "label": "Agenda tracer", "value": "12 event", "delta": "3 berjalan", "accent": "from-sky-500 to-indigo-500", "icon": "EV" }
+  ]
+}
