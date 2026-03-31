@@ -56,3 +56,7 @@ VITE_DASHBOARD_TIMEOUT_MS=20000            # Timeout khusus dashboard/insight (m
 1. Sediakan mock endpoint sesuai kontrak (`/auth/login`, `/tracer/questionnaires`, `/tracer/questionnaires/:id/questions`, `/jobs`, `/news`, dll) memakai json-server/Postman mock.
 2. Atur `VITE_API_BASE_URL` ke URL mock tersebut.
 3. Pastikan CORS mock mengizinkan origin Vite; jalankan `npm run dev`.
+
+## Deployment production (frontend + backend)
+
+Lihat panduan: `docs/deploy/GO-LIVE-FULLSTACK.md`
