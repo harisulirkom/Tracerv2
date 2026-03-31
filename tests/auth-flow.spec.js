@@ -32,21 +32,21 @@ describe('login and logout navigation flow', () => {
 
   it('mengarahkan admin ke dashboard setelah login', async () => {
     const auth = useAuth()
-    expect(auth.login(adminCreds.email, adminCreds.password)).toBe(true)
+    await expect(auth.login(adminCreds.email, adminCreds.password)).resolves.toBe(true)
     await router.push('/admin')
     expect(router.currentRoute.value.fullPath).toBe('/admin')
   })
 
   it('mengembalikan admin ke dashboard jika mencoba membuka /login', async () => {
     const auth = useAuth()
-    auth.login(adminCreds.email, adminCreds.password)
+    await auth.login(adminCreds.email, adminCreds.password)
     await router.push('/login')
     expect(router.currentRoute.value.fullPath).toBe('/admin')
   })
 
   it('mengembalikan pengguna ke login setelah logout saat menuju admin', async () => {
     const auth = useAuth()
-    auth.login(adminCreds.email, adminCreds.password)
+    await auth.login(adminCreds.email, adminCreds.password)
     auth.logout()
     await router.push('/admin')
     expect(router.currentRoute.value.fullPath).toBe('/login?redirect=/admin')

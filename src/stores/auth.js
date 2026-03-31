@@ -1,15 +1,67 @@
 import { computed, reactive } from 'vue'
 import { useUserManagement } from './userManagement'
 import userService from '@/services/userService'
-import apiClient, { setUnauthorizedHandler } from '@/services/apiClient'
+import { setAuthToken as setApiAuthToken, clearAuthToken as clearApiAuthToken } from '@/services/api'
+import { ensurePasswordHash, verifyPassword } from '@/utils/password'
 
 const STORAGE_USER = 'tracer_auth_user'
 const STORAGE_ACCOUNTS = 'tracer_admin_accounts'
 const STORAGE_TOKEN = 'tracer_auth_token'
+const STORAGE_AVATARS = 'tracer_auth_avatars'
+const canUseApi = !!import.meta.env.VITE_API_BASE_URL
+const ENABLE_LOCAL_AUTH_FALLBACK =
+  String(import.meta.env.VITE_ENABLE_LOCAL_AUTH_FALLBACK || '').trim().toLowerCase() === 'true'
 
 const DEFAULT_AVATAR =
   'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=240&q=60'
 const LOCAL_TOKEN_EXP_MS = 24 * 60 * 60 * 1000 // 24 jam
+const LOCAL_DEFAULT_PASSWORD = 'admin123'
+const LOCAL_DEFAULT_PASSWORD_HASH = ensurePasswordHash(LOCAL_DEFAULT_PASSWORD, LOCAL_DEFAULT_PASSWORD)
+const ROLE_ID_MAP = {
+  1: 'Super Admin',
+  2: 'Admin Universitas',
+  3: 'Admin Fakultas',
+  4: 'Admin Prodi',
+}
+const ROLE_NAME_MAP = {
+  'super admin': 'Super Admin',
+  'superadmin': 'Super Admin',
+  admin: 'Admin Universitas',
+  'admin universitas': 'Admin Universitas',
+  'admin fakultas': 'Admin Fakultas',
+  'admin prodi': 'Admin Prodi',
+  'admin program studi': 'Admin Prodi',
+}
+
+const normalizeRoleLabel = (roleValue) => {
+  if (roleValue && typeof roleValue === 'object') {
+    const candidate =
+      roleValue.role_name ||
+      roleValue.roleName ||
+      roleValue.role_id ||
+      roleValue.roleId ||
+      roleValue.name ||
+      roleValue.label ||
+      roleValue.title ||
+      roleValue.role ||
+      roleValue.nama ||
+      roleValue.id ||
+      ''
+    return normalizeRoleLabel(candidate)
+  }
+  const numeric =
+    typeof roleValue === 'number'
+      ? roleValue
+      : typeof roleValue === 'string' && roleValue.trim() && !Number.isNaN(Number(roleValue))
+        ? Number(roleValue)
+        : null
+  if (numeric !== null) {
+    return ROLE_ID_MAP[numeric] || String(numeric)
+  }
+  const key = String(roleValue || '').trim().toLowerCase()
+  if (!key) return ''
+  return ROLE_NAME_MAP[key] || String(roleValue).trim()
+}
 
 const state = reactive({
   user: null,
@@ -18,8 +70,57 @@ const state = reactive({
   tokenExpiresAt: null,
 })
 
+let avatarMap = {}
+
+const loadAvatarMap = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_AVATARS)
+    if (raw) {
+      avatarMap = JSON.parse(raw)
+      return
+    }
+  } catch (e) {
+    // ignore parse failures
+  }
+  avatarMap = {}
+}
+
+const saveAvatarMap = () => {
+  try {
+    localStorage.setItem(STORAGE_AVATARS, JSON.stringify(avatarMap))
+  } catch (e) {
+    // ignore storage errors
+  }
+}
+
+const getStoredAvatar = (email = '') => {
+  if (!email) return null
+  const key = email.toLowerCase()
+  const value = avatarMap[key]
+  return value || null
+}
+
+const storeAvatarForEmail = (email, avatarUrl) => {
+  if (!email || !avatarUrl) return
+  const key = email.toLowerCase()
+  if (avatarMap[key] === avatarUrl) return
+  avatarMap[key] = avatarUrl
+  saveAvatarMap()
+}
+
+const mergeAvatarWithEmail = (email, candidate) =>
+  getStoredAvatar(email) || candidate || DEFAULT_AVATAR
+
+loadAvatarMap()
 const saveAccounts = () => {
   localStorage.setItem(STORAGE_ACCOUNTS, JSON.stringify(state.accounts))
+}
+
+const ensureAccountIntegrity = () => {
+  state.accounts = state.accounts.map((acc) => ({
+    ...acc,
+    password: ensurePasswordHash(acc.password, LOCAL_DEFAULT_PASSWORD),
+  }))
 }
 
 const loadAccounts = () => {
@@ -32,13 +133,15 @@ const loadAccounts = () => {
     state.accounts = []
   }
 
+  ensureAccountIntegrity()
+
   // siapkan akun default jika belum ada
   if (!state.accounts.length) {
     state.accounts = [
       {
         id: 'local-super-admin',
         email: 'admin@tracer.local',
-        password: 'admin123',
+        password: LOCAL_DEFAULT_PASSWORD_HASH,
         name: 'Admin Tracer',
         fullName: 'Anita Rahmania',
         username: 'admin',
@@ -47,6 +150,7 @@ const loadAccounts = () => {
         status: 'Aktif',
       },
     ]
+    ensureAccountIntegrity()
     saveAccounts()
   }
 }
@@ -55,7 +159,14 @@ const loadUser = () => {
   try {
     const raw = localStorage.getItem(STORAGE_USER)
     if (raw) {
-      state.user = JSON.parse(raw)
+      const parsed = JSON.parse(raw)
+      if (parsed?.email) {
+        parsed.avatar = mergeAvatarWithEmail(parsed.email, parsed.avatar)
+      }
+      if (parsed?.role) {
+        parsed.role = normalizeRoleLabel(parsed.role) || parsed.role
+      }
+      state.user = parsed
     }
   } catch (e) {
     state.user = null
@@ -63,6 +174,9 @@ const loadUser = () => {
 }
 
 const saveUser = (user) => {
+  if (user?.email && user.avatar) {
+    storeAvatarForEmail(user.email, user.avatar)
+  }
   localStorage.setItem(STORAGE_USER, JSON.stringify(user))
 }
 
@@ -71,15 +185,21 @@ const saveToken = (token, expiresAt) => {
   localStorage.setItem(STORAGE_TOKEN, JSON.stringify(payload))
 }
 
+const isLocalFallbackToken = (token) => String(token || '').trim() === 'local-token'
+
 const loadToken = () => {
   try {
     const raw = localStorage.getItem(STORAGE_TOKEN)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (parsed?.token) {
+        if (canUseApi && !ENABLE_LOCAL_AUTH_FALLBACK && isLocalFallbackToken(parsed.token)) {
+          localStorage.removeItem(STORAGE_TOKEN)
+          return
+        }
         state.token = parsed.token
         state.tokenExpiresAt = parsed.expiresAt || null
-        apiClient.setAuthToken(parsed.token)
+        setApiAuthToken(parsed.token)
       }
     }
   } catch (e) {
@@ -92,7 +212,7 @@ const clearToken = () => {
   state.token = null
   state.tokenExpiresAt = null
   localStorage.removeItem(STORAGE_TOKEN)
-  apiClient.clearAuthToken()
+  clearApiAuthToken()
 }
 
 loadAccounts()
@@ -154,69 +274,104 @@ export const useAuth = () => {
     return Array.from(merged.values())
   }
 
-const login = (email, password) => {
-  const targetEmail = (email || '').toLowerCase()
-  const doLocalLogin = () => {
-    const accounts = buildAccountList()
-    const match = accounts.find(
-      (acc) =>
-        acc.email?.toLowerCase() === targetEmail &&
-          acc.password === password &&
+  const login = (email, password) => {
+    const targetEmail = (email || '').toLowerCase()
+    const canFallbackToLocal = !canUseApi || ENABLE_LOCAL_AUTH_FALLBACK
+    const toAuthUser = (profile = {}) => ({
+      id: profile.id,
+      email: profile.email,
+      name: profile.fullName || profile.name || 'Admin',
+      fullName: profile.fullName || profile.name || 'Admin',
+      username: profile.username || '',
+      avatar: mergeAvatarWithEmail(profile.email, profile.avatar),
+      role:
+        normalizeRoleLabel({
+          role: profile.role,
+          role_name: profile.role_name,
+          roleName: profile.roleName,
+          role_id: profile.role_id,
+          roleId: profile.roleId,
+        }) || 'Admin',
+      status: profile.status || 'Aktif',
+    })
+    const doLocalLogin = () => {
+      const accounts = buildAccountList()
+      const match = accounts.find(
+        (acc) =>
+          acc.email?.toLowerCase() === targetEmail &&
+          verifyPassword(password || '', acc.password) &&
           (acc.status || 'Aktif') === 'Aktif',
-    )
-    if (!match) return false
-    const user = {
-      id: match.id,
-      email: match.email,
+      )
+      if (!match) return false
+      const user = {
+        id: match.id,
+        email: match.email,
         name: match.fullName || match.name || 'Admin',
         fullName: match.fullName || match.name || 'Admin',
         username: match.username || '',
         avatar: match.avatar || DEFAULT_AVATAR,
-      role: match.role || 'Admin',
-      status: match.status || 'Aktif',
+        role: normalizeRoleLabel({ role: match.role }) || 'Admin',
+        status: match.status || 'Aktif',
+      }
+      state.user = user
+      saveUser(user)
+      const exp = new Date(Date.now() + LOCAL_TOKEN_EXP_MS).toISOString()
+      state.token = 'local-token'
+      state.tokenExpiresAt = exp
+      saveToken(state.token, exp)
+      setApiAuthToken(state.token)
+      return true
     }
-    state.user = user
-    saveUser(user)
-    const exp = new Date(Date.now() + LOCAL_TOKEN_EXP_MS).toISOString()
-    state.token = 'local-token'
-    state.tokenExpiresAt = exp
-    saveToken(state.token, exp)
-    apiClient.setAuthToken(state.token)
-    return true
-  }
 
     return userService
       .login({ email, password })
-      .then((resp) => {
-        if (resp?.token) {
+      .then(async (resp) => {
+        const token = resp?.token || resp?.data?.token
+        const profile = resp?.user || resp?.data?.user
+        if (token) {
           const exp =
-            resp.expiresAt ||
-            (resp.expiresIn ? new Date(Date.now() + resp.expiresIn * 1000).toISOString() : decodeJwtExp(resp.token))
-          state.token = resp.token
+            resp?.expiresAt ||
+            resp?.expiresIn ||
+            resp?.data?.expiresAt ||
+            (resp?.data?.expiresIn
+              ? new Date(Date.now() + resp.data.expiresIn * 1000).toISOString()
+              : decodeJwtExp(token))
+          state.token = token
           state.tokenExpiresAt = exp
-          saveToken(resp.token, exp)
-          apiClient.setAuthToken(resp.token)
+          saveToken(token, exp)
+          setApiAuthToken(token)
         }
-        const profile = resp?.user
-        if (profile) {
-          const user = {
-            id: profile.id,
-            email: profile.email,
-            name: profile.fullName || profile.name || 'Admin',
-            fullName: profile.fullName || profile.name || 'Admin',
-            username: profile.username || '',
-            avatar: profile.avatar || DEFAULT_AVATAR,
-            role: profile.role || 'Admin',
-            status: profile.status || 'Aktif',
-          }
+        if (profile?.email) {
+          const user = toAuthUser(profile)
           state.user = user
           saveUser(user)
           return true
         }
-        return doLocalLogin()
+
+        if (token) {
+          try {
+            const meResp = await userService.getProfile()
+            const meProfile = meResp?.data || meResp
+            if (meProfile?.email) {
+              const user = toAuthUser(meProfile)
+              state.user = user
+              saveUser(user)
+              return true
+            }
+          } catch (e) {
+            // lanjutkan ke fallback jika diizinkan
+          }
+        }
+
+        if (canFallbackToLocal) return doLocalLogin()
+        clearToken()
+        return false
       })
-      .catch(() => doLocalLogin())
-}
+      .catch((err) => {
+        if (canFallbackToLocal) return doLocalLogin()
+        throw err
+      })
+  }
 
   const logout = () => {
     state.user = null
@@ -314,10 +469,3 @@ const login = (email, password) => {
     updateProfile,
   }
 }
-
-// auto logout on 401 from apiClient
-setUnauthorizedHandler(() => {
-  state.user = null
-  clearToken()
-  localStorage.removeItem(STORAGE_USER)
-})

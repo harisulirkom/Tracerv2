@@ -1,18 +1,85 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useArticles } from '../stores/articles'
+import { useLocalizedDynamicContent } from '../composables/useLocalizedDynamicContent'
 
 const { articles, fetchArticles, loading, error } = useArticles()
-const filterStatus = ref('all')
+const { locale } = useI18n()
+const {
+  toText,
+  resolveLocalizedString,
+  resolveSummary,
+  resolvePublishedStatus,
+  resolveDateValue,
+} = useLocalizedDynamicContent(locale)
+
 const searchQuery = ref('')
 const articleModalOpen = ref(false)
-const selectedArticle = ref(null)
+const selectedArticleId = ref(null)
+
+const copyByLocale = {
+  id: {
+    tag: 'Artikel & Tips Karier',
+    title: 'Semua artikel & konten',
+    desc: 'Kumpulan panduan singkat untuk persiapan karier, lowongan, dan tips profesional.',
+    searchPlaceholder: 'Cari artikel...',
+    loading: 'Memuat artikel...',
+    empty: 'Belum ada artikel tersedia.',
+    viewDetail: 'Lihat rincian',
+    close: 'Tutup',
+    noExtra: 'Tidak ada konten tambahan.',
+    publish: 'Publish',
+    draft: 'Draft',
+  },
+  en: {
+    tag: 'Career Articles & Tips',
+    title: 'All articles & content',
+    desc: 'A collection of quick guides for career preparation, vacancies, and professional tips.',
+    searchPlaceholder: 'Search articles...',
+    loading: 'Loading articles...',
+    empty: 'No articles available yet.',
+    viewDetail: 'View details',
+    close: 'Close',
+    noExtra: 'No additional content.',
+    publish: 'Published',
+    draft: 'Draft',
+  },
+  ar: {
+    tag: 'مقالات ونصائح مهنية',
+    title: 'جميع المقالات والمحتوى',
+    desc: 'مجموعة أدلة مختصرة للتحضير المهني والوظائف والنصائح الاحترافية.',
+    searchPlaceholder: 'ابحث في المقالات...',
+    loading: 'جار تحميل المقالات...',
+    empty: 'لا توجد مقالات متاحة حاليا.',
+    viewDetail: 'عرض التفاصيل',
+    close: 'إغلاق',
+    noExtra: 'لا يوجد محتوى إضافي.',
+    publish: 'منشور',
+    draft: 'مسودة',
+  },
+}
+
+const ui = computed(() => copyByLocale[locale.value] || copyByLocale.id)
+const localeCode = computed(() => (locale.value === 'ar' ? 'ar-SA' : locale.value === 'en' ? 'en-US' : 'id-ID'))
+
+const localizedArticles = computed(() =>
+  articles.value.map((item, index) => ({
+    ...item,
+    id: item?.id ?? `article-${index}`,
+    title: resolveLocalizedString(item, 'title') || 'Untitled article',
+    summary: resolveSummary(item, ui.value.noExtra),
+    content: resolveLocalizedString(item, 'content'),
+    imageUrl: toText(item?.imageUrl || item?.image_url),
+    createdAt: resolveDateValue(item),
+    published: resolvePublishedStatus(item?.published),
+  })),
+)
 
 const filteredArticles = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  return articles.value.filter((item) => {
-    if (filterStatus.value === 'published' && !item.published) return false
-    if (filterStatus.value === 'draft' && item.published) return false
+  return localizedArticles.value.filter((item) => {
+    if (!item.published) return false
     if (!q) return true
     const haystack = `${item.title || ''} ${item.summary || ''} ${item.content || ''}`.toLowerCase()
     return haystack.includes(q)
@@ -20,14 +87,21 @@ const filteredArticles = computed(() => {
 })
 
 const openArticle = (item) => {
-  selectedArticle.value = item
+  selectedArticleId.value = item?.id ?? null
   articleModalOpen.value = true
 }
 
 const closeArticleModal = () => {
   articleModalOpen.value = false
-  selectedArticle.value = null
+  selectedArticleId.value = null
 }
+
+const selectedArticle = computed(() => {
+  if (selectedArticleId.value === null || selectedArticleId.value === undefined) return null
+  return (
+    localizedArticles.value.find((item) => String(item?.id) === String(selectedArticleId.value)) || null
+  )
+})
 
 onMounted(() => {
   fetchArticles()
@@ -35,67 +109,56 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+  <div class="public-page">
+    <section class="public-hero-panel motion-card-sheen p-6 sm:p-7">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-indigo-600">Artikel & Tips Karier</p>
-        <h1 class="text-3xl font-semibold text-slate-900">Semua artikel & konten</h1>
-        <p class="text-sm text-slate-600">Kumpulan panduan singkat untuk persiapan karier, lowongan, dan tips profesional.</p>
+        <p class="public-kicker">{{ ui.tag }}</p>
+        <h1 class="public-section-title mt-3">{{ ui.title }}</h1>
+        <p class="public-section-subtitle">{{ ui.desc }}</p>
       </div>
-      <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-600">
-        <div class="inline-flex rounded-full bg-slate-50 p-1">
-          <button
-            type="button"
-            class="rounded-full px-3 py-1"
-            :class="filterStatus === 'all' ? 'bg-slate-900 text-white' : 'hover:text-slate-900'"
-            @click="filterStatus = 'all'"
-          >
-            Semua
-          </button>
-          <button
-            type="button"
-            class="rounded-full px-3 py-1"
-            :class="filterStatus === 'published' ? 'bg-emerald-600 text-white' : 'hover:text-slate-900'"
-            @click="filterStatus = 'published'"
-          >
-            Publish
-          </button>
-          <button
-            type="button"
-            class="rounded-full px-3 py-1"
-            :class="filterStatus === 'draft' ? 'bg-slate-700 text-white' : 'hover:text-slate-900'"
-            @click="filterStatus = 'draft'"
-          >
-            Draft
-          </button>
-        </div>
+      <div class="flex flex-wrap items-center justify-start gap-2 text-[11px] font-semibold text-slate-600 sm:justify-end">
         <div class="relative">
           <input
             v-model="searchQuery"
             type="text"
             class="w-48 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 pr-7 text-xs text-slate-700 outline-none ring-0 transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-100"
-            placeholder="Cari artikel..."
+            :placeholder="ui.searchPlaceholder"
           />
-          <span class="pointer-events-none absolute right-2 top-1.5 text-[11px] text-slate-400">⌕</span>
+          <svg
+            class="pointer-events-none absolute right-2 top-1.5 h-3.5 w-3.5 text-slate-400"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="m14 14-3.5-3.5m0 0A4.5 4.5 0 1 0 14.5 6 4.5 4.5 0 0 0 10.5 10.5Z"
+            />
+          </svg>
         </div>
       </div>
-    </div>
+      </div>
+    </section>
 
     <div v-if="error" class="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-semibold text-rose-700">
       {{ error }}
     </div>
     <div v-else-if="loading" class="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-      Memuat artikel...
+      {{ ui.loading }}
     </div>
     <div v-else-if="!filteredArticles.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-      Belum ada artikel tersedia.
+      {{ ui.empty }}
     </div>
 
     <div v-else class="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
       <article
-        v-for="item in filteredArticles"
+        v-for="(item, itemIdx) in filteredArticles"
         :key="item.id"
-        class="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+        class="public-news-card motion-card-sheen motion-delay-item group"
+        :style="{ '--stagger-index': itemIdx }"
       >
         <div v-if="item.imageUrl" class="relative h-36 w-full overflow-hidden">
           <img
@@ -112,18 +175,18 @@ onMounted(() => {
               class="rounded-full px-3 py-1"
               :class="item.published ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'"
             >
-              {{ item.published ? 'Publish' : 'Draft' }}
+              {{ item.published ? ui.publish : ui.draft }}
             </span>
-            <span>{{ new Date(item.createdAt).toLocaleDateString('id-ID') }}</span>
+            <span>{{ new Date(item.createdAt).toLocaleDateString(localeCode) }}</span>
           </div>
           <h3 class="text-lg font-semibold text-slate-900 group-hover:text-indigo-600">{{ item.title }}</h3>
           <p class="text-sm text-slate-600 line-clamp-3">{{ item.summary }}</p>
           <button
             type="button"
-            class="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 transition hover:text-indigo-500"
+            class="motion-underline-link inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 transition hover:text-indigo-500"
             @click="openArticle(item)"
           >
-            Lihat rincian
+            {{ ui.viewDetail }}
             <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6" />
             </svg>
@@ -134,26 +197,26 @@ onMounted(() => {
 
     <div
       v-if="articleModalOpen && selectedArticle"
-      class="fixed inset-0 z-40 flex items-start justify-center bg-slate-900/50 p-4 sm:items-center"
+      class="public-dialog-backdrop"
       @click.self="closeArticleModal"
     >
-      <div class="relative w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8" style="max-height: 90vh">
+      <div class="public-dialog-panel max-w-4xl p-6 sm:p-8">
         <button
           type="button"
-          class="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+          class="public-dialog-close"
           @click="closeArticleModal"
         >
-          ✕
+          &times;
         </button>
         <div class="space-y-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-600">Artikel & Tips</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-600">{{ ui.tag }}</p>
           <h3 class="text-2xl font-semibold text-slate-900">{{ selectedArticle.title }}</h3>
           <p class="text-sm font-semibold text-slate-800">{{ selectedArticle.summary }}</p>
           <div v-if="selectedArticle.imageUrl" class="overflow-hidden rounded-2xl border border-slate-100">
             <img :src="selectedArticle.imageUrl" :alt="selectedArticle.title" class="h-64 w-full object-cover" loading="lazy" />
           </div>
           <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-line">
-            {{ selectedArticle.content || 'Tidak ada konten tambahan.' }}
+            {{ selectedArticle.content || ui.noExtra }}
           </div>
           <div class="flex flex-wrap justify-end gap-2">
             <button
@@ -161,7 +224,7 @@ onMounted(() => {
               class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               @click="closeArticleModal"
             >
-              Tutup
+              {{ ui.close }}
             </button>
           </div>
         </div>

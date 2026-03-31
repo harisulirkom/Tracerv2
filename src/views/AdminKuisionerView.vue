@@ -1,8 +1,9 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuestionnaires } from '../stores/questionnaires'
 import AdminShell from '../components/AdminShell.vue'
+import LoadingOverlay from '../components/LoadingOverlay.vue'
 
 const router = useRouter()
 const {
@@ -19,6 +20,10 @@ const {
 const mode = ref('create') // 'create' | 'edit'
 const editingId = ref(null)
 const saving = ref(false)
+const deleting = ref(false)
+const confirmSaveOpen = ref(false)
+const confirmDeleteOpen = ref(false)
+const deleteTarget = ref(null)
 const message = ref('')
 const error = ref('')
 
@@ -33,6 +38,10 @@ const form = reactive({
 
 const filterStatus = ref('all') // all | active | inactive
 const filterAudience = ref('all') // all | alumni | pengguna | umum
+const filterTabs = ['all', 'active', 'inactive']
+const filterTabContainerRef = ref(null)
+const filterTabRefs = ref([])
+const filterTabIndicator = reactive({ left: 0, top: 0, width: 0, height: 0 })
 
 const resetForm = () => {
   form.title = ''
@@ -45,6 +54,9 @@ const resetForm = () => {
   mode.value = 'create'
   message.value = ''
   error.value = ''
+  confirmSaveOpen.value = false
+  confirmDeleteOpen.value = false
+  deleteTarget.value = null
 }
 
 const startCreate = () => {
@@ -65,15 +77,15 @@ const startEdit = (item) => {
 }
 
 const handleSubmit = async () => {
-  saving.value = true
   message.value = ''
   error.value = ''
 
   if (!form.title.trim()) {
     error.value = 'Judul kuisioner wajib diisi.'
-    saving.value = false
     return
   }
+
+  saving.value = true
 
   const payload = {
     title: form.title,
@@ -97,18 +109,80 @@ const handleSubmit = async () => {
       resetForm()
     }
   } catch (e) {
-    error.value = 'Terjadi kesalahan saat menyimpan kuisioner.'
+    const messageFromServer = e?.response?.data?.message
+    const validationErrors = e?.response?.data?.errors
+    const detail =
+      messageFromServer ||
+      (validationErrors
+        ? Object.entries(validationErrors)
+            .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+            .join('; ')
+        : null)
+    error.value = detail || 'Terjadi kesalahan saat menyimpan kuisioner.'
   } finally {
     saving.value = false
   }
 }
 
+const requestSaveSubmit = () => {
+  message.value = ''
+  error.value = ''
+
+  if (!form.title.trim()) {
+    error.value = 'Judul kuisioner wajib diisi.'
+    return
+  }
+  if (saving.value) return
+  confirmSaveOpen.value = true
+}
+
+const closeSaveConfirm = () => {
+  confirmSaveOpen.value = false
+}
+
+const confirmSaveSubmit = async () => {
+  if (saving.value) return
+  confirmSaveOpen.value = false
+  await handleSubmit()
+}
+
 const handleDelete = async (id) => {
-  // eslint-disable-next-line no-alert
-  const confirmed = window.confirm('Hapus kuisioner ini? Semua pengaturan terkait akan dihapus dari admin.')
-  if (!confirmed) return
-  await deleteQuestionnaireApi(id)
-  if (editingId.value === id) resetForm()
+  message.value = ''
+  error.value = ''
+  try {
+    await deleteQuestionnaireApi(id)
+    if (editingId.value === id) resetForm()
+    message.value = 'Kuisioner berhasil dihapus.'
+  } catch (e) {
+    error.value = e?.message || 'Gagal menghapus kuisioner. Pastikan endpoint /questionnaires/{id} tersedia.'
+  }
+}
+
+const requestDelete = (item) => {
+  if (!item?.id || deleting.value) return
+  deleteTarget.value = {
+    id: item.id,
+    title: item.title || '',
+  }
+  confirmDeleteOpen.value = true
+}
+
+const closeDeleteConfirm = () => {
+  if (deleting.value) return
+  confirmDeleteOpen.value = false
+  deleteTarget.value = null
+}
+
+const confirmDelete = async () => {
+  if (deleting.value || !deleteTarget.value?.id) return
+  deleting.value = true
+  try {
+    await handleDelete(deleteTarget.value.id)
+    confirmDeleteOpen.value = false
+    deleteTarget.value = null
+  } finally {
+    deleting.value = false
+  }
 }
 
 const handleSetActive = async (id) => {
@@ -146,20 +220,50 @@ const audienceLabel = (aud = 'alumni') => {
   return 'Alumni'
 }
 
+const setFilterTabRef = (el, index) => {
+  if (el) filterTabRefs.value[index] = el
+}
+
+const updateFilterTabIndicator = () => {
+  nextTick(() => {
+    const index = filterTabs.indexOf(filterStatus.value)
+    const tabEl = filterTabRefs.value[index]
+    if (!filterTabContainerRef.value || !tabEl) return
+    const containerRect = filterTabContainerRef.value.getBoundingClientRect()
+    const tabRect = tabEl.getBoundingClientRect()
+    filterTabIndicator.left = tabRect.left - containerRect.left
+    filterTabIndicator.top = tabRect.top - containerRect.top
+    filterTabIndicator.width = tabRect.width
+    filterTabIndicator.height = tabRect.height
+  })
+}
+
 const goBack = () => {
   router.push('/admin')
 }
 
-fetchQuestionnaires()
+onMounted(() => {
+  fetchQuestionnaires()
+  updateFilterTabIndicator()
+  window.addEventListener('resize', updateFilterTabIndicator)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateFilterTabIndicator)
+})
+
+watch(filterStatus, () => {
+  updateFilterTabIndicator()
+})
 </script>
 
 <template>
   <AdminShell>
-    <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-10">
+    <div class="max-w-6xl px-4 py-6 sm:px-6 lg:px-10">
       <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Kuisioner</p>
-          <h1 class="mt-1 text-2xl font-semibold text-slate-900">Kelola kuisioner tracer</h1>
+          <h1 class="mt-1 text-2xl font-semibold text-slate-900">Kuisioner</h1>
           <p class="mt-1 text-xs text-slate-500">
             Tambah, ubah, aktifkan, dan hapus kuisioner tracer study yang akan digunakan di portal alumni.
           </p>
@@ -184,27 +288,44 @@ fetchQuestionnaires()
               </span>
             </div>
             <div class="flex flex-wrap items-center gap-3">
-              <div class="inline-flex rounded-full bg-slate-50 p-1 text-[11px]">
+              <div
+                ref="filterTabContainerRef"
+                class="relative inline-flex rounded-full bg-slate-50 p-1 text-[11px]"
+              >
+                <span
+                  aria-hidden="true"
+                  class="pointer-events-none absolute left-0 top-0 rounded-full bg-white shadow-sm ring-1 ring-slate-200 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                  :style="{
+                    width: filterTabIndicator.width + 'px',
+                    height: filterTabIndicator.height + 'px',
+                    transform: `translate(${filterTabIndicator.left}px, ${filterTabIndicator.top}px)`,
+                    opacity: filterTabIndicator.width ? 0.95 : 0,
+                    filter: filterTabIndicator.width ? 'blur(0.4px)' : 'blur(0px)',
+                  }"
+                ></span>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterStatus === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 0)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterStatus === 'all' ? 'text-slate-900' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterStatus = 'all'"
                 >
                   Semua
                 </button>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterStatus === 'active' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 1)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterStatus === 'active' ? 'text-emerald-700' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterStatus = 'active'"
                 >
                   Aktif
                 </button>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterStatus === 'inactive' ? 'bg-slate-700 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 2)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterStatus === 'inactive' ? 'text-slate-700' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterStatus = 'inactive'"
                 >
                   Tidak aktif
@@ -298,13 +419,7 @@ fetchQuestionnaires()
                 </button>
                 <button
                   type="button"
-                  class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold shadow-sm transition btn-white-gradient-hover"
-                  :class="
-                    item.active
-                      ? 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100'
-                      : 'border-slate-200 bg-white text-slate-400 cursor-not-allowed'
-                  "
-                  :disabled="!item.active"
+                  class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 btn-white-gradient-hover"
                   @click="goToResponses(item.id)"
                 >
                   <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -312,26 +427,33 @@ fetchQuestionnaires()
                     <path d="M5 9h14" />
                     <path d="M5 15h14" />
                   </svg>
-                  Lihat jawaban
+                  Data jawaban
+                </button>
+                <button
+                  type="button"
+                  class="rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-[11px] font-semibold text-teal-700 shadow-sm transition hover:bg-teal-100"
+                  @click="router.push({ name: 'AdminKuisionerQuestions', params: { id: item.id } })"
+                >
+                  Kelola pertanyaan
                 </button>
                 <button
                   type="button"
                   class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 btn-white-gradient-hover"
                   @click="goToDetail(item.id)"
                 >
-                  Lihat rinci
+                  Dashboard jawaban
                 </button>
                 <button
                   type="button"
                   class="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 btn-white-gradient-hover"
                   @click="startEdit(item)"
                 >
-                  Ubah
+                  Ubah info
                 </button>
                 <button
                   type="button"
                   class="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100"
-                  @click="handleDelete(item.id)"
+                  @click="requestDelete(item)"
                 >
                   Hapus
                 </button>
@@ -361,7 +483,7 @@ fetchQuestionnaires()
             </button>
           </div>
 
-          <form class="mt-4 space-y-3" @submit.prevent="handleSubmit">
+          <form class="mt-4 space-y-3" @submit.prevent="requestSaveSubmit">
             <div>
               <label class="block text-xs font-semibold text-slate-600">Judul tampilan</label>
               <input
@@ -454,5 +576,109 @@ fetchQuestionnaires()
         </section>
       </div>
     </div>
+
+    <Transition name="alert-dialog">
+      <div
+        v-if="confirmSaveOpen"
+        class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="questionnaire-save-confirm-title"
+        aria-describedby="questionnaire-save-confirm-desc"
+        @click.self="closeSaveConfirm"
+      >
+        <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+              <h3 id="questionnaire-save-confirm-title" class="text-lg font-semibold text-slate-900">
+                {{ mode === 'edit' ? 'Simpan perubahan kuisioner?' : 'Simpan kuisioner baru?' }}
+              </h3>
+              <p id="questionnaire-save-confirm-desc" class="mt-2 text-sm text-slate-600">
+                Kuisioner
+                <span class="font-semibold text-slate-900">{{ form.title || 'tanpa judul' }}</span>
+                akan disimpan ke sistem.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="closeSaveConfirm"
+            >
+              Tutup
+            </button>
+          </div>
+          <div class="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              @click="closeSaveConfirm"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              class="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+              :disabled="saving"
+              @click="confirmSaveSubmit"
+            >
+              {{ saving ? 'Menyimpan...' : 'Ya, simpan' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+    <Transition name="alert-dialog">
+      <div
+        v-if="confirmDeleteOpen"
+        class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="questionnaire-delete-confirm-title"
+        aria-describedby="questionnaire-delete-confirm-desc"
+        @click.self="closeDeleteConfirm"
+      >
+        <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+              <h3 id="questionnaire-delete-confirm-title" class="text-lg font-semibold text-slate-900">
+                Hapus kuisioner ini?
+              </h3>
+              <p id="questionnaire-delete-confirm-desc" class="mt-2 text-sm text-slate-600">
+                Kuisioner
+                <span class="font-semibold text-slate-900">{{ deleteTarget?.title || 'tanpa judul' }}</span>
+                beserta pengaturan terkait akan dihapus dari admin.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="closeDeleteConfirm"
+            >
+              Tutup
+            </button>
+          </div>
+          <div class="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              @click="closeDeleteConfirm"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              class="rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-60"
+              :disabled="deleting"
+              @click="confirmDelete"
+            >
+              {{ deleting ? 'Menghapus...' : 'Ya, hapus' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+    <LoadingOverlay :active="loading" />
   </AdminShell>
 </template>

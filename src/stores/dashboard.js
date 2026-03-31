@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
-import apiClient from '@/services/apiClient'
+import { get } from '@/services/api'
+import { DASHBOARD_TIMEOUT_MS } from '@/services/requestTimeout'
 
 const state = reactive({
   loading: false,
@@ -17,8 +18,8 @@ const fetchDashboardData = async () => {
   state.error = null
   try {
     if (canUseApi) {
-      const resp = await apiClient.get('/dashboard/summary')
-      state.payload = resp?.data || resp || {}
+      const resp = await get('/dashboard/summary', { timeout: DASHBOARD_TIMEOUT_MS })
+      state.payload = resp?.data ?? resp ?? {}
     } else {
       const response = await fetch(getEndpoint(), { cache: 'no-store' })
       if (!response.ok) {

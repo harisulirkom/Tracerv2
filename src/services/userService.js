@@ -1,30 +1,30 @@
-import apiClient, { setAuthToken, clearAuthToken } from './apiClient'
+import { get, post, put, del, setAuthToken, clearAuthToken } from './api'
 
 export const login = async (credentials) => {
-  const data = await apiClient.post('/auth/login', credentials)
+  const data = await post('/login', credentials, {
+    timeout: 10000,
+    skipAuthRedirect: true,
+  })
   if (data?.token) setAuthToken(data.token)
   return data
 }
 
-export const logout = () => {
-  clearAuthToken()
-  return Promise.resolve()
-}
+export const logout = () => post('/logout').finally(() => clearAuthToken())
 
-export const getProfile = () => apiClient.get('/auth/me')
+export const getProfile = () => get('/user')
 
-export const updateProfile = (payload) => apiClient.put('/auth/me', payload)
+export const updateProfile = (payload) => put('/user', payload)
 
-export const getUsers = (params = {}) => apiClient.get('/admin/users', params)
+export const getUsers = (params = {}) => get('/admin/users', { params })
 
-export const createUser = (payload) => apiClient.post('/admin/users', payload)
+export const createUser = (payload) => post('/admin/users', payload)
 
-export const updateUser = (id, payload) => apiClient.put(`/admin/users/${id}`, payload)
+export const updateUser = (id, payload) => put(`/admin/users/${id}`, payload)
 
-export const deleteUser = (id) => apiClient.del(`/admin/users/${id}`)
+export const deleteUser = (id) => del(`/admin/users/${id}`)
 
 export const resetPassword = (id, payload) =>
-  apiClient.post(`/admin/users/${id}/reset-password`, payload)
+  post(`/admin/users/${id}/reset-password`, payload)
 
 export default {
   login,

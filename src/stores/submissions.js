@@ -6,6 +6,11 @@ const canUseApi = !!import.meta.env.VITE_API_BASE_URL
 
 const state = reactive({
   items: [],
+  pagedItems: [],
+  pagedMeta: {},
+  pagedLinks: {},
+  pagedLoading: false,
+  pagedError: '',
   loading: false,
   error: '',
 })
@@ -118,22 +123,47 @@ export const useSubmissions = () => {
   const latestByType = (type) =>
     state.items.find((item) => (item.type || '').toLowerCase() === (type || '').toLowerCase()) || null
 
-  const fetchSubmissions = async (params = {}) => {
+  const fetchSubmissions = async (params = {}, options = {}) => {
+    const { questionnaireId, ...query } = params
+    const requestConfig = options?.requestConfig || {}
+    const silent = Boolean(options?.silent)
     state.loading = true
     state.error = ''
     try {
-      if (canUseApi && params.questionnaireId) {
-        const resp = await tracerService.getResponses(params.questionnaireId, params)
-        if (Array.isArray(resp?.data)) {
-          state.items = resp.data
+      if (canUseApi && questionnaireId) {
+        const resp = await tracerService.getResponses(questionnaireId, query, requestConfig)
+        const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
+        if (list.length) {
+          state.items = list
           save()
         }
       }
     } catch (err) {
-      state.error = err?.message || 'Gagal memuat submissions'
+      state.error = silent ? '' : err?.message || 'Gagal memuat submissions'
     } finally {
       state.loading = false
     }
+  }
+
+  const fetchSubmissionsPage = async (params = {}) => {
+    const { questionnaireId, ...query } = params
+    state.pagedLoading = true
+    state.pagedError = ''
+    try {
+      if (canUseApi && questionnaireId) {
+        const resp = await tracerService.getResponses(questionnaireId, query)
+        const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
+        state.pagedItems = list
+        state.pagedMeta = resp?.meta || resp?.data?.meta || {}
+        state.pagedLinks = resp?.links || resp?.data?.links || {}
+        return list
+      }
+    } catch (err) {
+      state.pagedError = err?.message || 'Gagal memuat submissions'
+    } finally {
+      state.pagedLoading = false
+    }
+    return []
   }
 
   const deleteSubmission = async (id) => {
@@ -158,9 +188,15 @@ export const useSubmissions = () => {
     latestAlumni: computed(() => latestByType('alumni')),
     latestByType,
     fetchSubmissions,
+    fetchSubmissionsPage,
     deleteSubmission,
     attemptsByNim,
     loading: computed(() => state.loading),
     error: computed(() => state.error),
+    pagedItems: computed(() => state.pagedItems),
+    pagedMeta: computed(() => state.pagedMeta),
+    pagedLinks: computed(() => state.pagedLinks),
+    pagedLoading: computed(() => state.pagedLoading),
+    pagedError: computed(() => state.pagedError),
   }
 }

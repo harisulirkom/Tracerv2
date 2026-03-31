@@ -1,15 +1,68 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, RouterLink } from 'vue-router'
 
 const route = useRoute()
+const { locale } = useI18n()
+
 const slug = computed(() => (route.params.slug || '').toString())
 const formattedTitle = computed(() => {
-  if (!slug.value) return 'Halaman ini'
+  if (!slug.value) return copy.value.pageLabel
   const words = slug.value.split('-').filter(Boolean)
-  if (!words.length) return 'Halaman ini'
+  if (!words.length) return copy.value.pageLabel
   return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
 })
+
+const copyByLocale = {
+  id: {
+    badge: 'Dalam pengembangan',
+    pageLabel: 'Halaman ini',
+    headerDesc: 'Halaman ini sedang kami kerjakan. Tim desain dan engineering menyiapkan konten serta data pendukungnya.',
+    backHome: 'Kembali ke beranda',
+    viewOther: 'Lihat informasi lain',
+    title: 'Sedang digarap',
+    desc: 'Kami menambahkan fitur, ilustrasi, dan data sesuai kebutuhan halaman ini. Jika Anda butuh informasi khusus, hubungi tim CDC agar dapat diprioritaskan.',
+    checklist1: 'Integrasi konten & data terbaru',
+    checklist2: 'Validasi tampilan & aksesibilitas',
+    checklist3: 'Estimasi publikasi segera setelah QA',
+    chip1: 'UI in progress',
+    chip2: 'Backend ready',
+    chip3: 'Konten disiapkan',
+  },
+  en: {
+    badge: 'Under development',
+    pageLabel: 'This page',
+    headerDesc: 'This page is currently in progress. Our design and engineering teams are preparing content and supporting data.',
+    backHome: 'Back to home',
+    viewOther: 'See other information',
+    title: 'In progress',
+    desc: 'We are adding features, illustrations, and data as required for this page. If you need specific information, contact the CDC team.',
+    checklist1: 'Latest content and data integration',
+    checklist2: 'UI and accessibility validation',
+    checklist3: 'Estimated release after QA',
+    chip1: 'UI in progress',
+    chip2: 'Backend ready',
+    chip3: 'Content in preparation',
+  },
+  ar: {
+    badge: 'قيد التطوير',
+    pageLabel: 'هذه الصفحة',
+    headerDesc: 'هذه الصفحة قيد العمل حاليا. يعمل فريقا التصميم والهندسة على تجهيز المحتوى والبيانات الداعمة.',
+    backHome: 'العودة إلى الرئيسية',
+    viewOther: 'عرض معلومات أخرى',
+    title: 'جار التنفيذ',
+    desc: 'نقوم بإضافة الميزات والرسومات والبيانات المناسبة لهذه الصفحة. إذا كنت تحتاج معلومات خاصة، تواصل مع فريق CDC.',
+    checklist1: 'تكامل أحدث المحتوى والبيانات',
+    checklist2: 'مراجعة الواجهة وإمكانية الوصول',
+    checklist3: 'نشر متوقع بعد QA',
+    chip1: 'الواجهة قيد التنفيذ',
+    chip2: 'الخلفية جاهزة',
+    chip3: 'المحتوى قيد التجهيز',
+  },
+}
+
+const copy = computed(() => copyByLocale[locale.value] || copyByLocale.id)
 </script>
 
 <template>
@@ -25,10 +78,10 @@ const formattedTitle = computed(() => {
         </div>
         <div class="relative flex h-full flex-col justify-between">
           <div class="space-y-3">
-            <p class="text-[11px] font-semibold uppercase tracking-[0.32em] text-white/80">Dalam pengembangan</p>
+            <p class="text-[11px] font-semibold uppercase tracking-[0.32em] text-white/80">{{ copy.badge }}</p>
             <h1 class="text-3xl font-semibold leading-tight">{{ formattedTitle }}</h1>
             <p class="text-sm text-white/80">
-              Halaman ini sedang kami kerjakan. Tim desain dan engineering menyiapkan konten serta data pendukungnya.
+              {{ copy.headerDesc }}
             </p>
           </div>
           <div class="mt-6 flex flex-wrap gap-3">
@@ -36,13 +89,13 @@ const formattedTitle = computed(() => {
               to="/"
               class="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-sm transition hover:brightness-110"
             >
-              Kembali ke beranda
+              {{ copy.backHome }}
             </RouterLink>
             <RouterLink
               to="/tentang"
               class="inline-flex items-center justify-center rounded-full border border-white/60 px-5 py-2.5 text-sm font-semibold text-white transition hover:border-white hover:bg-white/10"
             >
-              Lihat informasi lain
+              {{ copy.viewOther }}
             </RouterLink>
           </div>
         </div>
@@ -62,29 +115,26 @@ const formattedTitle = computed(() => {
             </svg>
           </div>
           <div class="space-y-3">
-            <h2 class="text-xl font-semibold text-slate-900">Sedang digarap</h2>
-            <p class="text-sm text-slate-600">
-              Kami menambahkan fitur, ilustrasi, dan data sesuai kebutuhan halaman ini. Jika Anda butuh informasi khusus,
-              hubungi tim CDC agar dapat diprioritaskan.
-            </p>
+            <h2 class="text-xl font-semibold text-slate-900">{{ copy.title }}</h2>
+            <p class="text-sm text-slate-600">{{ copy.desc }}</p>
             <ul class="space-y-2 text-sm text-slate-600">
               <li class="flex items-center gap-2">
                 <span class="h-2 w-2 rounded-full bg-emerald-500" />
-                Integrasi konten & data terbaru
+                {{ copy.checklist1 }}
               </li>
               <li class="flex items-center gap-2">
                 <span class="h-2 w-2 rounded-full bg-amber-500" />
-                Validasi tampilan & aksesibilitas
+                {{ copy.checklist2 }}
               </li>
               <li class="flex items-center gap-2">
                 <span class="h-2 w-2 rounded-full bg-sky-500" />
-                Estimasi publikasi segera setelah QA
+                {{ copy.checklist3 }}
               </li>
             </ul>
             <div class="flex flex-wrap gap-2 text-[12px] font-semibold text-slate-700">
-              <span class="rounded-full bg-slate-100 px-3 py-1">UI in progress</span>
-              <span class="rounded-full bg-slate-100 px-3 py-1">Backend ready</span>
-              <span class="rounded-full bg-slate-100 px-3 py-1">Konten disiapkan</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1">{{ copy.chip1 }}</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1">{{ copy.chip2 }}</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1">{{ copy.chip3 }}</span>
             </div>
           </div>
         </div>
@@ -92,3 +142,4 @@ const formattedTitle = computed(() => {
     </div>
   </div>
 </template>
+

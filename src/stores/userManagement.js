@@ -1,20 +1,68 @@
 import { computed, reactive } from 'vue'
 import userService from '@/services/userService'
+import { ensurePasswordHash } from '@/utils/password'
 
 const STORAGE_KEY = 'cdc_users_management'
 const DEFAULT_PASSWORD = 'admin123'
+const DEFAULT_PASSWORD_HASH = ensurePasswordHash(DEFAULT_PASSWORD, DEFAULT_PASSWORD)
 const canUseApi = !!import.meta.env.VITE_API_BASE_URL
 
 const ROLES = ['Super Admin', 'Admin Universitas', 'Admin Fakultas', 'Admin Prodi']
 
-const facultiesSample = ['Fakultas Sains', 'Fakultas Ekonomi', 'Fakultas Tarbiyah']
-const prodiSample = [
-  { name: 'Informatika', faculty: 'Fakultas Sains' },
-  { name: 'Sistem Informasi', faculty: 'Fakultas Sains' },
-  { name: 'Manajemen', faculty: 'Fakultas Ekonomi' },
-  { name: 'Akuntansi', faculty: 'Fakultas Ekonomi' },
-  { name: 'Pendidikan Agama', faculty: 'Fakultas Tarbiyah' },
+const facultiesSample = [
+  'Fakultas Tarbiyah',
+  'Fakultas Syariah',
+  'Fakultas Ushuluddin dan Dakwah',
+  'Fakultas Ekonomi dan Bisnis Islam',
+  'Pascasarjana',
 ]
+const prodiSample = [
+  { name: 'Pendidikan Agama Islam', faculty: 'Fakultas Tarbiyah' },
+  { name: 'Pendidikan Bahasa Arab', faculty: 'Fakultas Tarbiyah' },
+  { name: 'Pendidikan Guru Madrasah Ibtidaiyah', faculty: 'Fakultas Tarbiyah' },
+  { name: 'Pendidikan Profesi Guru', faculty: 'Fakultas Tarbiyah' },
+  { name: 'Tadris Bahasa Indonesia', faculty: 'Fakultas Tarbiyah' },
+  { name: 'Tadris Bahasa Inggris', faculty: 'Fakultas Tarbiyah' },
+  { name: 'Tadris IPA', faculty: 'Fakultas Tarbiyah' },
+  { name: 'Tadris Matematika', faculty: 'Fakultas Tarbiyah' },
+  { name: 'Hukum Ekonomi Syariah (Muamalah)', faculty: 'Fakultas Syariah' },
+  { name: 'Hukum Keluarga Islam (Ahwal Syakhshiyyah)', faculty: 'Fakultas Syariah' },
+  { name: "Hukum Tatanegara (Siyasah Syar'iyyah)", faculty: 'Fakultas Syariah' },
+  { name: 'Aqidah dan Filsafat Islam', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Ilmu al-Quran dan Tafsir', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Ilmu Hadis', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Jurnalistik Islam', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Komunikasi dan Penyiaran Islam', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Psikologi Islam', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Sosiologi Agama', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Studi Agama Agama', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Tasawuf dan Psikoterapi', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Manajemen Haji dan Umrah', faculty: 'Fakultas Ushuluddin dan Dakwah' },
+  { name: 'Akuntansi Syariah', faculty: 'Fakultas Ekonomi dan Bisnis Islam' },
+  { name: 'Ekonomi Syariah', faculty: 'Fakultas Ekonomi dan Bisnis Islam' },
+  { name: 'Manajemen Bisnis Syariah', faculty: 'Fakultas Ekonomi dan Bisnis Islam' },
+  { name: 'Perbankan Syariah', faculty: 'Fakultas Ekonomi dan Bisnis Islam' },
+  { name: 'S2 Ekonomi Syariah', faculty: 'Pascasarjana' },
+  { name: 'S2 Hukum Keluarga Islam (Ahwal Syakhshiyyah)', faculty: 'Pascasarjana' },
+  { name: "S2 Ilmu Al-Qur'an dan Tafsir", faculty: 'Pascasarjana' },
+  { name: 'S2 Manajemen Pendidikan Islam', faculty: 'Pascasarjana' },
+  { name: 'S2 Pendidikan Agama Islam', faculty: 'Pascasarjana' },
+  { name: 'S2 Pendidikan Bahasa Arab', faculty: 'Pascasarjana' },
+  { name: 'S3 Studi Islam', faculty: 'Pascasarjana' },
+]
+
+const MENU_PERMISSION_KEYS = [
+  'ikhtisar',
+  'kuisioner',
+  'alumni',
+  'bankSoal',
+  'cta',
+  'lowongan',
+  'artikel',
+  'user',
+  'berita',
+]
+const EXTRA_PERMISSION_KEYS = ['alumniEdit']
 
 const defaultUsers = [
   {
@@ -28,7 +76,7 @@ const defaultUsers = [
     faculty: '',
     prodi: '',
     status: 'Aktif',
-    password: DEFAULT_PASSWORD,
+    password: DEFAULT_PASSWORD_HASH,
     createdAt: '2024-12-20T08:00:00Z',
     lastLogin: '2025-01-10T08:00:00Z',
   },
@@ -43,7 +91,7 @@ const defaultUsers = [
     faculty: '',
     prodi: '',
     status: 'Aktif',
-    password: DEFAULT_PASSWORD,
+    password: DEFAULT_PASSWORD_HASH,
     createdAt: '2025-01-05T09:00:00Z',
     lastLogin: '2025-01-11T09:00:00Z',
   },
@@ -55,10 +103,10 @@ const defaultUsers = [
     phone: '081300022233',
     nip: '198502052012112002',
     role: 'Admin Fakultas',
-    faculty: 'Fakultas Ekonomi',
+    faculty: 'Fakultas Ekonomi dan Bisnis Islam',
     prodi: '',
     status: 'Aktif',
-    password: DEFAULT_PASSWORD,
+    password: DEFAULT_PASSWORD_HASH,
     createdAt: '2025-01-07T10:00:00Z',
     lastLogin: '2025-01-10T12:00:00Z',
   },
@@ -70,67 +118,79 @@ const defaultUsers = [
     phone: '081400033344',
     nip: '199002122019121003',
     role: 'Admin Prodi',
-    faculty: 'Fakultas Sains',
-    prodi: 'Sistem Informasi',
+    faculty: 'Fakultas Tarbiyah',
+    prodi: 'Tadris Bahasa Inggris',
     status: 'Nonaktif',
-    password: DEFAULT_PASSWORD,
+    password: DEFAULT_PASSWORD_HASH,
     createdAt: '2025-01-08T11:00:00Z',
     lastLogin: '2025-01-09T11:30:00Z',
   },
 ]
 
+const createDefaultPermissions = () => ({
+  'Super Admin': {
+    ikhtisar: true,
+    kuisioner: true,
+    alumni: true,
+    alumniEdit: true,
+    bankSoal: true,
+    cta: true,
+    lowongan: true,
+    artikel: true,
+    user: true,
+    berita: true,
+  },
+  'Admin Universitas': {
+    ikhtisar: true,
+    kuisioner: true,
+    alumni: true,
+    alumniEdit: false,
+    bankSoal: true,
+    cta: true,
+    lowongan: true,
+    artikel: true,
+    user: true,
+    berita: true,
+  },
+  'Admin Fakultas': {
+    ikhtisar: true,
+    kuisioner: true,
+    alumni: true,
+    alumniEdit: false,
+    bankSoal: true,
+    cta: false,
+    lowongan: true,
+    artikel: false,
+    user: false,
+    berita: false,
+  },
+  'Admin Prodi': {
+    ikhtisar: true,
+    kuisioner: true,
+    alumni: true,
+    alumniEdit: false,
+    bankSoal: true,
+    cta: false,
+    lowongan: true,
+    artikel: false,
+    user: false,
+    berita: false,
+  },
+})
+
+const DEFAULT_PERMISSIONS = createDefaultPermissions()
+
 const state = reactive({
   users: [],
   loading: false,
   error: '',
-  permissions: {
-    'Super Admin': {
-      user: true,
-      master: true,
-      lowongan: true,
-      alumni: true,
-      tracer: true,
-      pelaporan: true,
-      kegiatan: true,
-      beranda: true,
-      lainnya: true,
-    },
-    'Admin Universitas': {
-      user: true,
-      master: true,
-      lowongan: true,
-      alumni: true,
-      tracer: true,
-      pelaporan: true,
-      kegiatan: true,
-      beranda: true,
-      lainnya: false,
-    },
-    'Admin Fakultas': {
-      user: true,
-      master: true,
-      lowongan: true,
-      alumni: true,
-      tracer: true,
-      pelaporan: true,
-      kegiatan: true,
-      beranda: true,
-      lainnya: false,
-    },
-    'Admin Prodi': {
-      user: true,
-      master: true,
-      lowongan: true,
-      alumni: true,
-      tracer: true,
-      pelaporan: false,
-      kegiatan: true,
-      beranda: true,
-      lainnya: false,
-    },
-  },
+  permissions: createDefaultPermissions(),
   facultyMapping: facultiesSample.map((name) => ({ name, adminId: '' })),
   prodiMapping: prodiSample.map((item) => ({ name: item.name, faculty: item.faculty, adminId: '' })),
+  accessControl: {
+    restrictFacultyMenu: true,
+    restrictFacultyBankSoalWrite: true,
+  },
   auditLogs: [
     {
       id: 'log-1',
@@ -165,11 +225,94 @@ const ensureUserIntegrity = () => {
     ...u,
     fullName: u.fullName || u.name,
     username: u.username || (u.email ? u.email.split('@')[0] : ''),
-    password: u.password || DEFAULT_PASSWORD,
+    password: ensurePasswordHash(u.password, DEFAULT_PASSWORD),
     status: u.status || 'Aktif',
     createdAt: u.createdAt || now,
     lastLogin: u.lastLogin || u.createdAt || now,
   }))
+}
+
+const syncMappings = () => {
+  const existingFaculty = new Map(
+    (state.facultyMapping || []).map((item) => [item.name, item.adminId || '']),
+  )
+  state.facultyMapping = facultiesSample.map((name) => ({
+    name,
+    adminId: existingFaculty.get(name) || '',
+  }))
+
+  const existingProdi = new Map(
+    (state.prodiMapping || []).map((item) => [item.name, item.adminId || '']),
+  )
+  state.prodiMapping = prodiSample.map((item) => ({
+    name: item.name,
+    faculty: item.faculty,
+    adminId: existingProdi.get(item.name) || '',
+  }))
+}
+
+const resolveLegacyPermission = (rolePerms, key) => {
+  if (rolePerms && Object.prototype.hasOwnProperty.call(rolePerms, key)) {
+    return rolePerms[key]
+  }
+  return undefined
+}
+
+const ensurePermissionIntegrity = () => {
+  Object.keys(DEFAULT_PERMISSIONS).forEach((role) => {
+    if (!state.permissions[role]) {
+      state.permissions[role] = { ...DEFAULT_PERMISSIONS[role] }
+    }
+  })
+
+  Object.keys(state.permissions || {}).forEach((role) => {
+    const perms = state.permissions[role] || {}
+    const legacyBeranda = resolveLegacyPermission(perms, 'beranda')
+    const legacyTracer = resolveLegacyPermission(perms, 'tracer')
+    const legacyAlumni = resolveLegacyPermission(perms, 'alumni')
+    const legacyLowongan = resolveLegacyPermission(perms, 'lowongan')
+    const legacyUser = resolveLegacyPermission(perms, 'user')
+
+    MENU_PERMISSION_KEYS.forEach((key) => {
+      if (typeof perms[key] === 'boolean') return
+      switch (key) {
+        case 'ikhtisar':
+          perms[key] = legacyBeranda ?? true
+          break
+        case 'kuisioner':
+        case 'bankSoal':
+          perms[key] = legacyTracer ?? true
+          break
+        case 'alumni':
+          perms[key] = legacyAlumni ?? true
+          break
+        case 'cta':
+        case 'artikel':
+        case 'berita':
+          perms[key] = legacyBeranda ?? true
+          break
+        case 'lowongan':
+          perms[key] = legacyLowongan ?? true
+          break
+        case 'user':
+          perms[key] = legacyUser ?? true
+          break
+        default:
+          perms[key] = true
+      }
+    })
+
+    MENU_PERMISSION_KEYS.forEach((key) => {
+      if (typeof perms[key] !== 'boolean') perms[key] = true
+    })
+
+    EXTRA_PERMISSION_KEYS.forEach((key) => {
+      if (typeof perms[key] === 'boolean') return
+      perms[key] = !!DEFAULT_PERMISSIONS[role]?.[key]
+    })
+
+    state.permissions[role] = perms
+  })
 }
 
 const load = () => {
@@ -181,6 +324,26 @@ const load = () => {
     }
   } catch (e) {
     // ignore
+  }
+  if (!state.accessControl || typeof state.accessControl !== 'object') {
+    state.accessControl = {
+      restrictFacultyMenu: true,
+      restrictFacultyBankSoalWrite: true,
+    }
+  } else {
+    if (typeof state.accessControl.restrictFacultyMenu !== 'boolean') {
+      state.accessControl.restrictFacultyMenu = true
+    }
+    if (typeof state.accessControl.restrictFacultyBankSoalWrite !== 'boolean') {
+      state.accessControl.restrictFacultyBankSoalWrite = true
+    }
+  }
+  syncMappings()
+  ensurePermissionIntegrity()
+  if (canUseApi) {
+    state.users = Array.isArray(state.users) ? state.users : []
+    ensureUserIntegrity()
+    return
   }
   if (!Array.isArray(state.users) || !state.users.length) {
     state.users = [...defaultUsers]
@@ -200,23 +363,23 @@ export const useUserManagement = () => {
       if (canUseApi) {
         const resp = await userService.getUsers(params)
         const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
-        if (list.length) {
-          state.users = list.map((u) => ({
-            ...u,
-            fullName: u.fullName || u.name,
-            username: u.username || (u.email ? u.email.split('@')[0] : ''),
-          }))
-          save()
-          return
-        }
+        state.users = list.map((u) => ({
+          ...u,
+          faculty: u.faculty || u.fakultas || '',
+          prodi: u.prodi || u.program || u.programStudi || '',
+          fullName: u.fullName || u.name,
+          username: u.username || (u.email ? u.email.split('@')[0] : ''),
+        }))
+        save()
+        return
       }
-      if (!state.users.length) {
+      if (!state.users.length && !canUseApi) {
         state.users = [...defaultUsers]
         save()
       }
     } catch (err) {
       state.error = err?.message || 'Gagal memuat pengguna'
-      if (!state.users.length) {
+      if (!state.users.length && !canUseApi) {
         state.users = [...defaultUsers]
         save()
       }
@@ -230,20 +393,17 @@ export const useUserManagement = () => {
       throw new Error('Email sudah terpakai')
     }
     if (canUseApi) {
-      try {
-        const resp = await userService.createUser(payload)
-        const user = resp?.data || resp
-        if (user) {
-          state.users.unshift(user)
-          save()
-          return user
-        }
-      } catch (err) {
-        state.error = err?.message || 'Gagal menambah pengguna (fallback lokal)'
+      const resp = await userService.createUser(payload)
+      const user = resp?.data || resp
+      if (user) {
+        state.users.unshift(user)
+        save()
+        return user
       }
+      throw new Error('Gagal menambah pengguna.')
     }
     const now = new Date().toISOString()
-    const password =
+    const passwordToStore =
       payload.password && payload.password.trim() ? payload.password.trim() : DEFAULT_PASSWORD
     const user = {
       id: generateId(),
@@ -257,7 +417,7 @@ export const useUserManagement = () => {
       faculty: payload.faculty || '',
       prodi: payload.prodi || '',
       status: payload.status || 'Aktif',
-      password,
+      password: ensurePasswordHash(passwordToStore, DEFAULT_PASSWORD),
       createdAt: now,
       lastLogin: now,
     }
@@ -281,27 +441,23 @@ export const useUserManagement = () => {
     }
 
     if (canUseApi) {
-      try {
-        const resp = await userService.updateUser(id, payload)
-        const updated = resp?.data || resp
-        state.users[index] = { ...state.users[index], ...updated }
-        save()
-        return true
-      } catch (err) {
-        state.error = err?.message || 'Gagal memperbarui user'
-      }
+      const resp = await userService.updateUser(id, payload)
+      const updated = resp?.data || resp
+      state.users[index] = { ...state.users[index], ...updated }
+      save()
+      return true
     }
 
-    const nextPassword =
+    const nextPasswordValue =
       payload.password && payload.password.trim()
         ? payload.password.trim()
-        : current.password || DEFAULT_PASSWORD
+        : current.password || DEFAULT_PASSWORD_HASH
 
     state.users[index] = {
       ...current,
       ...payload,
       fullName: payload.fullName || payload.name || current.fullName || current.name,
-      password: nextPassword,
+      password: ensurePasswordHash(nextPasswordValue, DEFAULT_PASSWORD),
     }
     save()
   }
@@ -340,7 +496,13 @@ export const useUserManagement = () => {
       }
     }
     state.users = state.users.map((u) =>
-      ids.includes(u.id) ? { ...u, password: DEFAULT_PASSWORD, updatedAt: new Date().toISOString() } : u,
+      ids.includes(u.id)
+        ? {
+            ...u,
+            password: DEFAULT_PASSWORD_HASH,
+            updatedAt: new Date().toISOString(),
+          }
+        : u,
     )
     save()
     return ids.length
@@ -348,6 +510,17 @@ export const useUserManagement = () => {
 
   const togglePermission = (role, key, value) => {
     state.permissions[role][key] = value
+    save()
+  }
+
+  const setAccessControl = (key, value) => {
+    if (!state.accessControl || typeof state.accessControl !== 'object') {
+      state.accessControl = {
+        restrictFacultyMenu: true,
+        restrictFacultyBankSoalWrite: true,
+      }
+    }
+    state.accessControl[key] = value
     save()
   }
 
@@ -404,6 +577,7 @@ export const useUserManagement = () => {
     permissions: state.permissions,
     facultyMapping: state.facultyMapping,
     prodiMapping: state.prodiMapping,
+    accessControl: computed(() => state.accessControl),
     auditLogs: computed(() => state.auditLogs),
     addUser,
     updateUser,
@@ -412,6 +586,7 @@ export const useUserManagement = () => {
     bulkAssignRole,
     bulkResetPassword,
     togglePermission,
+    setAccessControl,
     assignFacultyAdmin,
     assignProdiAdmin,
     addAuditLog,

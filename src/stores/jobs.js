@@ -160,6 +160,10 @@ const state = reactive({
 })
 
 const load = () => {
+  if (canUseApi) {
+    state.items = []
+    return
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
@@ -221,11 +225,9 @@ export const useJobs = () => {
       if (canUseApi) {
         const resp = await jobService.getJobs(params)
         const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
-        if (list.length) {
-          state.items = list.map(normalizeJob)
-          save()
-          return
-        }
+        state.items = list.map(normalizeJob)
+        save()
+        return
       }
       if (!state.items.length) load()
     } catch (err) {

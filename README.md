@@ -45,6 +45,8 @@ VITE_API_BASE_URL=https://api.cdc.local     # Base URL backend (REST)
 VITE_DASHBOARD_DATA_URL=/api/dashboard.json # Fallback dashboard bila backend belum siap
 VITE_APP_NAME=Tracer CDC
 VITE_APP_ENV=local
+VITE_API_TIMEOUT_MS=10000                  # Timeout default request API (ms)
+VITE_DASHBOARD_TIMEOUT_MS=20000            # Timeout khusus dashboard/insight (ms)
 ```
 
 - Jika backend sudah tersedia: isi `VITE_API_BASE_URL` dengan host API (mis. `https://staging.cdc.ac.id/api`), jalankan frontend: `npm run dev`.

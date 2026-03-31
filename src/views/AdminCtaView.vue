@@ -1,17 +1,34 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminShell from '../components/AdminShell.vue'
+import LoadingOverlay from '../components/LoadingOverlay.vue'
 import { useCtaSlides } from '../stores/cta'
 
 const router = useRouter()
-const { slides, addSlide, updateSlide, deleteSlide, reorderSlides, resetToDefault } = useCtaSlides()
+const {
+  slides,
+  addSlide,
+  updateSlide,
+  deleteSlide,
+  reorderSlides,
+  resetToDefault,
+  fetchSlides,
+  syncSlides,
+  loading,
+} = useCtaSlides()
 
 const mode = ref('create')
 const editingId = ref(null)
 const saving = ref(false)
+const deleting = ref(false)
+const resetting = ref(false)
 const message = ref('')
 const error = ref('')
+const confirmSaveOpen = ref(false)
+const confirmDeleteOpen = ref(false)
+const confirmResetOpen = ref(false)
+const deleteTarget = ref(null)
 
 const clampProgress = (value) => Math.min(100, Math.max(0, Number(value) || 0))
 
@@ -53,6 +70,10 @@ const resetForm = (clearFeedback = false) => {
   form.statsBadge = 'Live'
   mode.value = 'create'
   editingId.value = null
+  confirmSaveOpen.value = false
+  confirmDeleteOpen.value = false
+  confirmResetOpen.value = false
+  deleteTarget.value = null
   if (clearFeedback) {
     message.value = ''
     error.value = ''
@@ -112,17 +133,11 @@ const buildPayload = () => ({
   },
 })
 
-const handleSubmit = () => {
-  saving.value = true
+const performSave = async () => {
   message.value = ''
   error.value = ''
 
-  if (!form.title.trim() || !form.highlight.trim()) {
-    error.value = 'Judul dan highlight CTA wajib diisi.'
-    saving.value = false
-    return
-  }
-
+  saving.value = true
   try {
     const payload = buildPayload()
     if (editingId.value) {
@@ -132,12 +147,35 @@ const handleSubmit = () => {
       addSlide(payload)
       message.value = 'CTA baru ditambahkan.'
     }
+    await syncSlides()
     resetForm()
   } catch (e) {
     error.value = 'Terjadi kesalahan saat menyimpan CTA.'
   } finally {
     saving.value = false
   }
+}
+
+const handleSubmit = () => {
+  if (saving.value) return
+  message.value = ''
+  error.value = ''
+
+  if (!form.title.trim() || !form.highlight.trim()) {
+    error.value = 'Judul dan highlight CTA wajib diisi.'
+    return
+  }
+
+  confirmSaveOpen.value = true
+}
+
+const closeSaveConfirm = () => {
+  confirmSaveOpen.value = false
+}
+
+const confirmSave = async () => {
+  confirmSaveOpen.value = false
+  await performSave()
 }
 
 const handleEdit = (item) => {
@@ -163,15 +201,13 @@ const handleEdit = (item) => {
   form.statsBadge = item.stats?.badge || 'Live'
 }
 
-const handleDelete = (id) => {
+const handleDelete = async (id) => {
   if (slides.value.length <= 1) {
     error.value = 'Minimal satu slide CTA harus tersedia.'
     return
   }
-  // eslint-disable-next-line no-alert
-  const confirmed = window.confirm('Hapus slide CTA ini?')
-  if (!confirmed) return
   deleteSlide(id)
+  await syncSlides()
   message.value = 'CTA dihapus.'
   error.value = ''
   if (editingId.value === id) {
@@ -179,32 +215,87 @@ const handleDelete = (id) => {
   }
 }
 
-const handleReorder = (index, direction) => {
+const requestDelete = (item) => {
+  if (!item?.id || deleting.value) return
+  if (slides.value.length <= 1) {
+    error.value = 'Minimal satu slide CTA harus tersedia.'
+    return
+  }
+  deleteTarget.value = {
+    id: item.id,
+    title: item.title || '',
+  }
+  confirmDeleteOpen.value = true
+}
+
+const closeDeleteConfirm = () => {
+  if (deleting.value) return
+  confirmDeleteOpen.value = false
+  deleteTarget.value = null
+}
+
+const confirmDelete = async () => {
+  if (deleting.value || !deleteTarget.value?.id) return
+  deleting.value = true
+  try {
+    await handleDelete(deleteTarget.value.id)
+    confirmDeleteOpen.value = false
+    deleteTarget.value = null
+  } finally {
+    deleting.value = false
+  }
+}
+
+const handleReorder = async (index, direction) => {
   const target = index + direction
   if (target < 0 || target >= slides.value.length) return
   reorderSlides(index, target)
+  await syncSlides()
 }
 
-const handleResetDefault = () => {
-  // eslint-disable-next-line no-alert
-  const confirmed = window.confirm('Kembalikan CTA ke konten bawaan?')
-  if (!confirmed) return
+const handleResetDefault = async () => {
   resetToDefault()
+  await syncSlides()
   message.value = 'CTA dikembalikan ke konten default.'
   error.value = ''
   resetForm()
+}
+
+const requestResetDefault = () => {
+  if (resetting.value) return
+  confirmResetOpen.value = true
+}
+
+const closeResetConfirm = () => {
+  if (resetting.value) return
+  confirmResetOpen.value = false
+}
+
+const confirmResetDefault = async () => {
+  if (resetting.value) return
+  resetting.value = true
+  try {
+    await handleResetDefault()
+    confirmResetOpen.value = false
+  } finally {
+    resetting.value = false
+  }
 }
 
 const goBack = () => {
   router.push('/admin')
 }
 
+onMounted(() => {
+  fetchSlides()
+})
+
 resetForm(true)
 </script>
 
 <template>
   <AdminShell>
-    <div class="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-10">
+    <div class="max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-10">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">CTA Slider</p>
@@ -224,7 +315,7 @@ resetForm(true)
           <button
             type="button"
             class="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700 shadow-sm transition hover:bg-amber-100"
-            @click="handleResetDefault"
+            @click="requestResetDefault"
           >
             Reset ke default
           </button>
@@ -308,7 +399,7 @@ resetForm(true)
               <button
                 type="button"
                 class="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                @click="handleDelete(item.id)"
+                @click="requestDelete(item)"
               >
                 Hapus
               </button>
@@ -608,4 +699,157 @@ resetForm(true)
       </div>
     </div>
   </AdminShell>
+  <LoadingOverlay :active="loading" />
+
+  <Transition name="alert-dialog">
+    <div
+      v-if="confirmSaveOpen"
+      class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="cta-save-confirm-title"
+      aria-describedby="cta-save-confirm-desc"
+      @click.self="closeSaveConfirm"
+    >
+      <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+              <h3 id="cta-save-confirm-title" class="text-lg font-semibold text-slate-900">
+                {{ editingId ? 'Simpan perubahan CTA?' : 'Simpan CTA baru?' }}
+              </h3>
+            <p id="cta-save-confirm-desc" class="mt-2 text-sm text-slate-600">
+              CTA dengan judul
+              <span class="font-semibold text-slate-900">{{ form.title || 'tanpa judul' }}</span>
+              akan langsung tampil di halaman publik setelah disimpan.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            @click="closeSaveConfirm"
+          >
+            Tutup
+          </button>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            @click="closeSaveConfirm"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+            :disabled="saving"
+            @click="confirmSave"
+          >
+            {{ saving ? 'Menyimpan...' : 'Ya, simpan' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+  <Transition name="alert-dialog">
+    <div
+      v-if="confirmDeleteOpen"
+      class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="cta-delete-confirm-title"
+      aria-describedby="cta-delete-confirm-desc"
+      @click.self="closeDeleteConfirm"
+    >
+      <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+            <h3 id="cta-delete-confirm-title" class="text-lg font-semibold text-slate-900">
+              Hapus slide CTA ini?
+            </h3>
+            <p id="cta-delete-confirm-desc" class="mt-2 text-sm text-slate-600">
+              CTA
+              <span class="font-semibold text-slate-900">{{ deleteTarget?.title || 'tanpa judul' }}</span>
+              akan dihapus dari slider publik.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            @click="closeDeleteConfirm"
+          >
+            Tutup
+          </button>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            @click="closeDeleteConfirm"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-60"
+            :disabled="deleting"
+            @click="confirmDelete"
+          >
+            {{ deleting ? 'Menghapus...' : 'Ya, hapus' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+  <Transition name="alert-dialog">
+    <div
+      v-if="confirmResetOpen"
+      class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="cta-reset-confirm-title"
+      aria-describedby="cta-reset-confirm-desc"
+      @click.self="closeResetConfirm"
+    >
+      <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+            <h3 id="cta-reset-confirm-title" class="text-lg font-semibold text-slate-900">
+              Kembalikan CTA ke konten bawaan?
+            </h3>
+            <p id="cta-reset-confirm-desc" class="mt-2 text-sm text-slate-600">
+              Semua konfigurasi CTA saat ini akan diganti dengan konten default.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            @click="closeResetConfirm"
+          >
+            Tutup
+          </button>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            @click="closeResetConfirm"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-60"
+            :disabled="resetting"
+            @click="confirmResetDefault"
+          >
+            {{ resetting ? 'Memproses...' : 'Ya, reset' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
 </template>

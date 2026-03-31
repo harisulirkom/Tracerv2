@@ -1,7 +1,10 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import alumniService from '@/services/alumniService'
+import alumniService, { lookupAlumniByNim } from '@/services/alumniService'
+import tracerService from '@/services/tracerService'
+import responseService from '@/services/responseService'
+import wilayahService from '@/services/wilayahService'
 import { useAlumni } from '../stores/alumni'
 import { useSubmissions } from '../stores/submissions'
 import { useQuestionnaires } from '../stores/questionnaires'
@@ -95,6 +98,7 @@ const tokenError = ref('')
 const formLocked = ref(false)
 const lookupLoading = ref(false)
 const attemptNotice = ref('')
+const alumniId = ref(null)
 
 const route = useRoute()
 const { alumni, fetchAlumni } = useAlumni()
@@ -111,32 +115,123 @@ const activeAlumniQuestionnaire = computed(() => activeQuestionnaire.value)
 const questionnaireQuestions = computed(() =>
   activeAlumniQuestionnaire.value?.id ? questionsById(activeAlumniQuestionnaire.value.id) : [],
 )
+
+const alumniLabels = computed(() => {
+  const find = (code, keywords = [], def = '') => {
+    const list = questionnaireQuestions.value || []
+    const byCode = list.find(q => q.code === code)
+    if (byCode) return byCode.pertanyaan
+    const byKeyword = list.find(q => keywords.some(kw => (q.pertanyaan || '').toLowerCase().includes(kw)))
+    return byKeyword?.pertanyaan || def
+  }
+  
+  return {
+    nama: find('nama', ['nama lengkap', 'nama'], 'Nama Lengkap'),
+    nik: find('nik', ['nik'], 'NIK'),
+    alamat: find('alamat', ['alamat'], 'Alamat'),
+    hp: find('hp', ['no hp', 'whatsapp', 'nomor telp'], 'No HP / WhatsApp'),
+    nim: find('nim', ['nim'], 'NIM'),
+    fakultas: find('fakultas', ['fakultas'], 'Fakultas'),
+    prodi: find('prodi', ['prodi', 'program studi'], 'Program Studi'),
+    tahun: find('tahun_lulus', ['tahun lulus'], 'Tahun Lulus'),
+    status: find('status', ['status saat ini', 'status pekerjaan'], 'Status saat ini'),
+    saran: find('saran', ['masukan', 'saran'], 'Masukan/Saran untuk Pengembangan Kurikulum'),
+  }
+})
+
 const alumniItems = computed(() => alumni.value.items || [])
 
 const pickField = (obj, candidates = []) => {
   if (!obj || typeof obj !== 'object') return undefined
+  const entries = Object.entries(obj || {})
+  const lowerEntries = entries.map(([k, v]) => [k.toLowerCase(), v])
+
+  // Langkah 1: exact match (case-insensitive)
   for (const key of candidates) {
-    if (obj[key] !== undefined) return obj[key]
-    const lowerKey = Object.keys(obj).find((k) => k.toLowerCase() === key.toLowerCase())
-    if (lowerKey) return obj[lowerKey]
+    const exact = lowerEntries.find(([lk]) => lk === key.toLowerCase())
+    if (exact) return exact[1]
   }
+
+  // Langkah 2: contains match (contoh: "nama_alumni", "hp_alumni")
+  for (const key of candidates) {
+    const found = lowerEntries.find(([lk]) => lk.includes(key.toLowerCase()))
+    if (found) return found[1]
+  }
+
   return undefined
 }
 
 const normalizeAlumniItem = (item) => {
   if (!item) return null
-  const nim = pickField(item, ['nim', 'studentId', 'student_id', 'id'])
+  const alumniId = pickField(item, ['alumni_id', 'alumniId', 'id'])
+  const nim = pickField(item, ['nim', 'studentId', 'student_id', 'id', 'nomor_induk', 'no_induk'])
   return {
-    nama: pickField(item, ['nama', 'name', 'fullName', 'full_name']) || '',
+    id: alumniId || undefined,
+    nama:
+      pickField(item, [
+        'nama',
+        'name',
+        'fullName',
+        'full_name',
+        'nama_lengkap',
+        'namaMahasiswa',
+        'nama_mahasiswa',
+        'nama_alumni',
+        'nama_mhs',
+      ]) || '',
     nim: String(nim || '').trim(),
-    nik: pickField(item, ['nik', 'nationalId', 'national_id']) || '',
-    noHp: pickField(item, ['noHp', 'phone', 'telepon', 'phoneNumber', 'phone_number']) || '',
-    alamat: pickField(item, ['alamat', 'address', 'alamat_domisili', 'alamatDomisili']) || '',
-    prodi: pickField(item, ['prodi', 'programStudi', 'program', 'program_studi']) || '',
-    fakultas: pickField(item, ['fakultas', 'faculty', 'fakultas_name', 'faculty_name']) || '',
-    tahunLulus: pickField(item, ['tahunLulus', 'graduationYear', 'graduation_year', 'tahun']) || '',
+    nik: pickField(item, ['nik', 'nationalId', 'national_id', 'nik_alumni', 'no_ktp', 'ktp']) || '',
+    noHp:
+      pickField(item, [
+        'noHp',
+        'phone',
+        'telepon',
+        'phoneNumber',
+        'phone_number',
+        'no_hp',
+        'hp',
+        'hp_alumni',
+        'nomor_hp',
+      ]) || '',
+    alamat:
+      pickField(item, [
+        'alamat',
+        'address',
+        'alamat_domisili',
+        'alamatDomisili',
+        'alamat_lengkap',
+        'alamat_rumah',
+        'alamat_mahasiswa',
+        'alamat_alumni',
+      ]) || '',
+    prodi:
+      pickField(item, [
+        'prodi',
+        'programStudi',
+        'program',
+        'program_studi',
+        'prodi_name',
+        'program_study',
+        'jurusan',
+        'program_study_name',
+      ]) || '',
+    fakultas:
+      pickField(item, ['fakultas', 'faculty', 'fakultas_name', 'faculty_name', 'fakultas_alumni', 'nama_fakultas']) ||
+      '',
+    tahunLulus:
+      pickField(item, [
+        'tahunLulus',
+        'graduationYear',
+        'graduation_year',
+        'tahun',
+        'tahun_lulus',
+        'angkatan',
+        'tahunKelulusan',
+        'tahun_kelulusan',
+        'tahun_lulus_alumni',
+      ]) || '',
     email: pickField(item, ['email', 'alamatEmail', 'mail', 'email_address']) || '',
-    dob: pickField(item, ['dob', 'tglLahir', 'birthDate', 'birth_date']) || '',
+    dob: pickField(item, ['dob', 'tglLahir', 'birthDate', 'birth_date', 'tanggal_lahir']) || '',
   }
 }
 
@@ -152,7 +247,7 @@ const normalizeAlumniList = (payload) => {
     if (!obj) return null
     if (Array.isArray(obj)) return obj
     if (hasCoreFields(obj)) return [obj]
-    const keys = ['data', 'items', 'alumni', 'result', 'payload']
+    const keys = ['data', 'items', 'alumni', 'result', 'payload', 'biodata', 'profile', 'mahasiswa', 'student']
     for (const key of keys) {
       if (Array.isArray(obj[key])) return obj[key]
       if (obj[key] && typeof obj[key] === 'object') {
@@ -169,6 +264,12 @@ const normalizeAlumniList = (payload) => {
   return arr.map(normalizeAlumniItem).filter(Boolean)
 }
 
+const extractAlumniIdFromPayload = (payload) => {
+  const list = normalizeAlumniList(payload)
+  const match = list.find((item) => item?.id)
+  return match?.id
+}
+
 const tryApplyAlumniPayload = (payload) => {
   const [match] = normalizeAlumniList(payload)
   if (!match) return false
@@ -178,8 +279,9 @@ const tryApplyAlumniPayload = (payload) => {
 
 const applyAlumniData = (data) => {
   if (!data) return
+  alumniId.value = data.id || data.alumni_id || data.alumniId || alumniId.value
   form.nama = data.nama || form.nama
-  form.nim = data.nim || form.nim
+  form.nim = data.nim || form.nim || nimInput.value
   form.nik = data.nik || form.nik
   form.noHp = data.noHp || form.noHp
   form.alamat = data.alamat || form.alamat
@@ -187,6 +289,23 @@ const applyAlumniData = (data) => {
   form.fakultas = data.fakultas || form.fakultas
   form.tahun = data.tahunLulus || form.tahun
   form.email = data.email || form.email
+}
+
+const resetForm = () => {
+  form.nama = ''
+  form.nik = ''
+  form.alamat = ''
+  form.noHp = ''
+  form.nim = ''
+  form.fakultas = ''
+  form.prodi = ''
+  form.tahun = ''
+  form.email = ''
+  form.status = ''
+  form.ekstra = ''
+  form.dynamicAnswers = {}
+  nimInput.value = ''
+  alumniId.value = null
 }
 
 const provinces = [
@@ -246,21 +365,163 @@ const kabupatenMap = {
   default: ['Kota/Kabupaten utama 1', 'Kota/Kabupaten utama 2'],
 }
 
+const fallbackProvinceList = provinces.map((name) => ({ code: name, name }))
+const getFallbackKabupatenList = (provinceName = '') =>
+  (kabupatenMap[provinceName] || kabupatenMap.default || []).map((name) => ({ code: name, name }))
+
+const provincesList = ref([])
+const provincesLoading = ref(false)
+const provincesError = ref('')
+const regenciesList = ref([])
+const regenciesLoading = ref(false)
+const regenciesError = ref('')
+const selectedProvinceCode = ref('')
+const selectedKabupatenCode = ref('')
 const provinceQuery = ref('')
 const kabupatenQuery = ref('')
 
+const provincesSource = ref('fallback')
+const getProvinceSource = () =>
+  provincesSource.value === 'api' && provincesList.value.length ? provincesList.value : fallbackProvinceList
+const getKabupatenSource = () =>
+  (regenciesList.value.length ? regenciesList.value : getFallbackKabupatenList(form.bekerja_provinsi))
+
 const filteredProvinces = computed(() => {
+  const source = getProvinceSource()
   const q = provinceQuery.value.trim().toLowerCase()
-  if (!q) return provinces
-  return provinces.filter((p) => p.toLowerCase().includes(q))
+  if (!q) return source
+  return source.filter((p) => p.name.toLowerCase().includes(q))
 })
 
 const filteredKabupaten = computed(() => {
-  const base = kabupatenMap[form.bekerja_provinsi] || kabupatenMap.default || []
+  const source = getKabupatenSource()
   const q = kabupatenQuery.value.trim().toLowerCase()
-  if (!q) return base
-  return base.filter((k) => k.toLowerCase().includes(q))
+  if (!q) return source
+  return source.filter((k) => k.name.toLowerCase().includes(q))
 })
+
+const handleProvinceSelect = (code) => {
+  selectedProvinceCode.value = code
+}
+
+const handleKabupatenSelect = (code) => {
+  selectedKabupatenCode.value = code
+}
+
+const syncProvinceSelection = () => {
+  if (selectedProvinceCode.value) return
+  const target = form.bekerja_provinsi?.trim().toLowerCase()
+  if (!target) return
+  const match = getProvinceSource().find((item) => item.name.toLowerCase() === target)
+  if (match) {
+    selectedProvinceCode.value = match.code
+  }
+}
+
+const syncKabupatenSelection = () => {
+  if (selectedKabupatenCode.value) return
+  const target = form.bekerja_kabupaten?.trim().toLowerCase()
+  if (!target) return
+  const match = getKabupatenSource().find((item) => item.name.toLowerCase() === target)
+  if (match) {
+    selectedKabupatenCode.value = match.code
+  }
+}
+
+const loadProvinces = async () => {
+  provincesLoading.value = true
+  provincesError.value = ''
+  try {
+    const fetched = await wilayahService.getProvinces()
+    provincesList.value = fetched
+    provincesSource.value = fetched.length ? 'api' : 'fallback'
+  } catch (err) {
+    provincesError.value = err?.message || 'Gagal memuat provinsi'
+    provincesList.value = []
+    provincesSource.value = 'fallback'
+  } finally {
+    provincesLoading.value = false
+    syncProvinceSelection()
+  }
+}
+
+const loadRegenciesForProvince = async (provinceCode) => {
+  if (!provinceCode || provincesSource.value !== 'api') {
+    regenciesList.value = []
+    regenciesLoading.value = false
+    regenciesError.value = ''
+    syncKabupatenSelection()
+    return
+  }
+  regenciesLoading.value = true
+  regenciesError.value = ''
+  regenciesList.value = []
+  try {
+    regenciesList.value = await wilayahService.getRegenciesByProvince(provinceCode)
+  } catch (err) {
+    regenciesError.value = err?.message || 'Gagal memuat kabupaten/kota'
+    regenciesList.value = []
+  } finally {
+    regenciesLoading.value = false
+    syncKabupatenSelection()
+  }
+}
+
+watch(
+  selectedProvinceCode,
+  async (code) => {
+    if (!code) {
+      form.bekerja_provinsi = ''
+      selectedKabupatenCode.value = ''
+      regenciesList.value = []
+      form.bekerja_kabupaten = ''
+      return
+    }
+    const province = getProvinceSource().find((item) => item.code === code)
+    if (province) {
+      form.bekerja_provinsi = province.name
+    }
+    if (provincesSource.value === 'api') {
+      await loadRegenciesForProvince(code)
+    } else {
+      regenciesList.value = []
+      selectedKabupatenCode.value = ''
+      form.bekerja_kabupaten = ''
+    }
+  },
+  { immediate: false },
+)
+
+watch(
+  selectedKabupatenCode,
+  (code) => {
+    if (!code) {
+      form.bekerja_kabupaten = ''
+      return
+    }
+    const kab = getKabupatenSource().find((item) => item.code === code)
+    if (kab) {
+      form.bekerja_kabupaten = kab.name
+    }
+  },
+  { immediate: false },
+)
+
+watch(
+  () => form.bekerja_provinsi,
+  () => {
+    if (selectedProvinceCode.value) return
+    syncProvinceSelection()
+  },
+)
+
+watch(
+  () => form.bekerja_kabupaten,
+  () => {
+    if (selectedKabupatenCode.value) return
+    syncKabupatenSelection()
+  },
+)
 
 const skorOptions = ['1', '2', '3', '4', '5']
 const showNimModal = ref(false)
@@ -270,6 +531,27 @@ const searchResultNim = ref('')
 const searchMessage = ref('')
 const searchError = ref('')
 const searchLoading = ref(false)
+const normalizeDateInput = (value) => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) return raw
+  const dmyMatch = raw.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/)
+  if (!dmyMatch) return ''
+  const day = Number(dmyMatch[1])
+  const month = Number(dmyMatch[2])
+  const year = Number(dmyMatch[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return ''
+  }
+  return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+}
 const attemptHistory = computed(() => {
   const nimKey = (form.nim || nimInput.value || '').trim()
   if (!nimKey || !attemptsByNim) return []
@@ -277,34 +559,46 @@ const attemptHistory = computed(() => {
 })
 
 onMounted(async () => {
-  await Promise.all([fetchAlumni(), fetchActiveQuestionnaire('alumni')])
+  // Only fetch questionnaire for public view. 
+  // Alumni data is fetched via 'Apply NIM' (lookup) or Token.
+  // DO NOT fetchAlumni() here - it leaks data and requires Admin auth.
+  await fetchActiveQuestionnaire('alumni')
+  
   if (activeAlumniQuestionnaire.value?.id) {
     fetchQuestions(activeAlumniQuestionnaire.value.id)
   }
   await validateTokenFromQuery()
+  await loadProvinces()
 })
 
 const validateTokenFromQuery = async () => {
   const token = route.query?.token
   if (!token) return
   try {
-    const decoded = JSON.parse(atob(String(token)))
-    const exp = Number(decoded.exp)
-    if (!decoded.nim || Number.isNaN(exp)) {
+    const resp = await responseService.validateSurveyToken(String(token))
+    const alumni = resp?.alumni || resp?.data?.alumni
+    if (!alumni?.nim) {
       throw new Error('Token tidak valid.')
     }
-    if (Date.now() > exp) {
-      tokenError.value = 'Link kuisioner sudah kedaluwarsa. Minta tautan baru dari admin.'
-      formLocked.value = true
-      return
+    tokenInfo.value = alumni
+    tokenError.value = ''
+    formLocked.value = false
+    nimInput.value = alumni.nim
+    alumniId.value = alumni.id || alumni.alumni_id || alumni.alumniId || alumniId.value
+    tryApplyAlumniPayload(resp || alumni)
+    const normalizedToken = normalizeAlumniItem(alumni)
+    if (normalizedToken) {
+      applyAlumniData(normalizedToken)
     }
-    tokenInfo.value = { ...decoded, exp }
-    nimInput.value = decoded.nim
     await handleApplyNim()
-    const expireDate = new Date(exp).toLocaleDateString('id-ID', { dateStyle: 'medium' })
-    lookupMessage.value = `Data alumni otomatis diisi dari tautan khusus. Link aktif sampai ${expireDate}.`
+    lookupMessage.value = 'Data alumni otomatis diisi dari tautan khusus.'
   } catch (err) {
-    tokenError.value = err?.message || 'Token tidak valid.'
+    const message =
+      err?.response?.data?.message ||
+      err?.payload?.message ||
+      err?.message ||
+      'Token tidak valid.'
+    tokenError.value = message
     formLocked.value = true
   }
 }
@@ -321,39 +615,16 @@ const handleApplyNim = async () => {
   let lastError = ''
   let applied = false
   try {
-    const resp = await alumniService.searchAlumni({ nim })
+    const resp = await lookupAlumniByNim(nim)
     applied = tryApplyAlumniPayload(resp)
     if (applied) {
+      if (resp?.data?.id) alumniId.value = resp.data.id
       lookupMessage.value = 'Data alumni ditemukan dan sudah diisikan ke formulir.'
     } else {
       lastError = 'Data alumni tidak ditemukan untuk NIM tersebut.'
     }
   } catch (err) {
     lastError = err?.message || 'Data alumni tidak ditemukan untuk NIM tersebut.'
-  }
-
-  if (!applied) {
-    try {
-      const resp = await alumniService.getAlumni({ nim })
-      applied = tryApplyAlumniPayload(resp)
-      if (applied) {
-        lookupMessage.value = 'Data alumni ditemukan dan sudah diisikan ke formulir.'
-      }
-    } catch (err) {
-      lastError = err?.message || lastError
-    }
-  }
-
-  if (!applied) {
-    try {
-      const resp = await alumniService.getAlumniById(nim)
-      applied = tryApplyAlumniPayload(resp)
-      if (applied) {
-        lookupMessage.value = 'Data alumni ditemukan dan sudah diisikan ke formulir.'
-      }
-    } catch (err) {
-      lastError = err?.message || lastError
-    }
   }
 
   if (!applied) {
@@ -388,19 +659,26 @@ const handleSearchNim = async () => {
   searchError.value = ''
   searchResultNim.value = ''
   const name = searchName.value.trim()
-  const dob = searchDob.value.trim()
+  const dobInput = searchDob.value.trim()
+  const dob = normalizeDateInput(dobInput)
+  if (dobInput && !dob) {
+    searchError.value = 'Format tanggal lahir tidak valid.'
+    return
+  }
   if (!name && !dob) {
     searchError.value = 'Nama atau tanggal lahir wajib diisi.'
     return
   }
   searchLoading.value = true
   try {
-    const resp = await alumniService.searchAlumni({ name, dob })
+    const params = { name }
+    if (dob) params.dob = dob
+    const resp = await alumniService.searchAlumni(params, { skipAuthRedirect: true })
     const results = normalizeAlumniList(resp)
     const match =
       results.find((item) => {
         const nameMatch = name ? (item.nama || '').toLowerCase().includes(name.toLowerCase()) : true
-        const dobMatch = dob ? String(item.dob || '') === dob : true
+        const dobMatch = dob ? normalizeDateInput(item.dob) === dob : true
         return nameMatch && dobMatch
       }) || results[0]
     if (!match?.nim) {
@@ -426,36 +704,254 @@ const copyNim = async () => {
   }
 }
 
+const normalizeQuestionLabel = (question) => {
+  const raw =
+    question?.pertanyaan ||
+    question?.question ||
+    question?.label ||
+    question?.text ||
+    question?.title ||
+    ''
+  return String(raw || '').trim().toLowerCase()
+}
+
+const findBestQuestion = (list, keywords = []) => {
+  if (!Array.isArray(list) || !list.length) return null
+  const lowered = keywords.map((kw) => String(kw || '').trim().toLowerCase()).filter(Boolean)
+  if (!lowered.length) return null
+  const matches = list.filter((q) => {
+    const label = normalizeQuestionLabel(q)
+    return lowered.some((kw) => label.includes(kw))
+  })
+  if (!matches.length) return null
+  return matches.sort(
+    (a, b) => normalizeQuestionLabel(a).length - normalizeQuestionLabel(b).length,
+  )[0]
+}
+
+const serializeCompetencyValues = (values = {}, fieldDefs = {}) =>
+  Object.entries(fieldDefs)
+    .map(([key, def]) => {
+      const val = values?.[key]
+      if (val === undefined || val === null || val === '') return null
+      return `${def.label}: ${val}`
+    })
+    .filter(Boolean)
+    .join('; ')
+
 const submitForm = async () => {
+  lookupError.value = ''
+  lookupMessage.value = ''
   if (formLocked.value) {
     lookupError.value = tokenError.value || 'Link kuisioner tidak aktif. Minta tautan baru.'
     return
   }
-  const snapshot = JSON.parse(JSON.stringify(form))
-  const result = await addSubmission({
-    type: 'alumni',
-    audience: 'alumni',
-    nama: snapshot.nama || '',
-    prodi: snapshot.prodi || '',
-    fakultas: snapshot.fakultas || '',
-    tahun: snapshot.tahun || '',
-    status: snapshot.status || '',
-    waitMonths: snapshot.bekerja_bulanDapat || snapshot.bekerja_bulanTidak || '',
-    salary: snapshot.bekerja_pendapatan || '',
-    industry:
-      snapshot.bekerja_jenisPerusahaan ||
-      snapshot.wira_jenisPerusahaan ||
-      snapshot.wira_bidang ||
-      '',
-    province: snapshot.bekerja_provinsi || snapshot.studi_lokasi || '',
-    raw: snapshot,
-  })
-  if (result?.attemptNumber) {
-    attemptNotice.value = `Terima kasih, ini pengisian kuisioner ke-${result.attemptNumber} Anda.`
-  } else {
-    attemptNotice.value = 'Terima kasih, pengisian kuisioner telah tersimpan.'
+  if (!activeAlumniQuestionnaire.value?.id) {
+    lookupError.value = 'Kuisioner tidak tersedia.'
+    return
   }
+  if (!alumniId.value) {
+    const nimCandidate = (form.nim || nimInput.value || '').trim()
+    if (nimCandidate) {
+      try {
+        const resp = await lookupAlumniByNim(nimCandidate)
+        const foundId =
+          extractAlumniIdFromPayload(resp) ||
+          resp?.data?.id ||
+          resp?.id ||
+          resp?.alumni_id ||
+          resp?.alumniId
+        if (foundId) {
+          alumniId.value = foundId
+        }
+      } catch (err) {
+        // ignore and show generic message below
+      }
+    }
+  }
+  if (!alumniId.value) {
+    lookupError.value = 'Data alumni belum terisi. Gunakan Apply NIM terlebih dahulu.'
+    return
+  }
+  const snapshot = JSON.parse(JSON.stringify(form))
+  // Siapkan jawaban minimal untuk dikirim ke backend (mapping ke pertanyaan tracer)
+  const qList = questionnaireQuestions.value || []
+  const findQ = (needle) => {
+    const lowered = String(needle || '').trim().toLowerCase()
+    if (!lowered) return null
+    return qList.find((q) => normalizeQuestionLabel(q).includes(lowered)) || null
+  }
+  const answersById = new Map()
+  const addAnswer = (question, value) => {
+    if (!question?.id) return
+    const normalized =
+      typeof value === 'string'
+        ? value.trim()
+        : Array.isArray(value)
+          ? value.filter((item) => item !== '' && item !== null && item !== undefined)
+          : value
+    if (
+      normalized === undefined ||
+      normalized === null ||
+      normalized === '' ||
+      (Array.isArray(normalized) && normalized.length === 0)
+    ) {
+      return
+    }
+    const key = String(question.id)
+    if (answersById.has(key)) return
+    answersById.set(key, { question_id: question.id, jawaban: normalized })
+  }
+  const qNama = findQ('nama')
+  const qNim = findQ('nim')
+  const qStatus = findQ('status pekerjaan')
+  const qBulan = findQ('bulan setelah lulus')
+  const qGaji = findQ('gaji awal')
+  addAnswer(qNama, snapshot.nama)
+  addAnswer(qNim, snapshot.nim)
+  addAnswer(qStatus, snapshot.status || snapshot.bekerja_kesesuaianBidang || '')
+  addAnswer(qBulan, snapshot.bekerja_bulanDapat || snapshot.bekerja_bulanTidak || '')
+  addAnswer(qGaji, snapshot.bekerja_pendapatan || '')
+
+  const kompetensiIndividuDefs = {
+    etika: { label: 'Etika', keywords: ['etika'] },
+    keahlian: { label: 'Keahlian berdasarkan bidang', keywords: ['keahlian', 'keahlian berdasarkan bidang'] },
+    bahasa: { label: 'Bahasa Inggris', keywords: ['bahasa inggris', 'bahasa'] },
+    teknologi: { label: 'Penggunaan Teknologi Informasi', keywords: ['teknologi informasi', 'penggunaan teknologi', 'ti'] },
+    komunikasi: { label: 'Komunikasi', keywords: ['komunikasi'] },
+    kerjasama: { label: 'Kerjasama tim', keywords: ['kerjasama', 'kerja sama'] },
+    pengembangan: { label: 'Pengembangan diri', keywords: ['pengembangan diri', 'pengembangan'] },
+  }
+
+  const kompetensiPembelajaranDefs = {
+    perkuliahan: { label: 'Perkuliahan', keywords: ['perkuliahan'] },
+    demonstrasi: { label: 'Demonstrasi', keywords: ['demonstrasi'] },
+    riset: { label: 'Proyek riset', keywords: ['proyek riset', 'riset'] },
+    magang: { label: 'Magang', keywords: ['magang'] },
+    praktikum: { label: 'Praktikum', keywords: ['praktikum'] },
+    kerjaLapangan: { label: 'Kerja lapangan', keywords: ['kerja lapangan', 'lapangan'] },
+    diskusi: { label: 'Diskusi', keywords: ['diskusi'] },
+  }
+
+  const addCompetencyAnswers = (groupKeywords, fieldDefs, values = {}) => {
+    const matches = []
+    Object.entries(fieldDefs).forEach(([key, def]) => {
+      const val = values?.[key]
+      if (val === undefined || val === null || val === '') return
+      const question = findBestQuestion(qList, def.keywords)
+      if (!question?.id) return
+      matches.push({ question, value: val })
+    })
+
+    const uniqueIds = new Set(matches.map((m) => String(m.question.id)))
+    const groupQuestion = findBestQuestion(qList, groupKeywords)
+    const groupId = groupQuestion?.id ? String(groupQuestion.id) : null
+    const serialized = serializeCompetencyValues(values, fieldDefs)
+
+    const allMatchGroupOnly =
+      uniqueIds.size === 1 && matches.length > 1 && groupId && uniqueIds.has(groupId)
+
+    if (allMatchGroupOnly) {
+      if (serialized) addAnswer(groupQuestion, serialized)
+      return
+    }
+
+    matches.forEach((item) => addAnswer(item.question, item.value))
+
+    if (
+      serialized &&
+      groupQuestion?.id &&
+      !uniqueIds.has(groupId) &&
+      uniqueIds.size < Object.keys(fieldDefs).length
+    ) {
+      addAnswer(groupQuestion, serialized)
+    }
+  }
+
+  addCompetencyAnswers(
+    ['penilaian kompetensi individu', 'kompetensi individu'],
+    kompetensiIndividuDefs,
+    snapshot.kompetensi_individu,
+  )
+  addCompetencyAnswers(
+    ['penilaian kompetensi pembelajaran', 'kompetensi pembelajaran'],
+    kompetensiPembelajaranDefs,
+    snapshot.kompetensi_pembelajaran,
+  )
+
+  const answersPayload = Array.from(answersById.values())
+  const answersObject = answersPayload.reduce((acc, item) => {
+    const key = String(item.question_id)
+    acc[key] = item.jawaban
+    return acc
+  }, {})
+
+  if (!answersPayload.length) {
+    lookupError.value = 'Pertanyaan kuisioner belum tersedia. Muat ulang halaman dan coba lagi.'
+    return
+  }
+
+  // Kirim ke backend terlebih dahulu
+  try {
+    let resp = null
+    try {
+      resp = await responseService.submitResponses({
+        alumni_id: alumniId.value,
+        questionnaire_id: activeAlumniQuestionnaire.value.id,
+        answers: answersObject,
+        form_data: snapshot,
+      })
+    } catch (err) {
+      if (err?.response?.status !== 404) throw err
+      resp = await tracerService.submitAlumniAnswer({
+        alumni_id: alumniId.value,
+        questionnaire_id: activeAlumniQuestionnaire.value.id,
+        answers: answersPayload,
+        form_data: snapshot,
+      })
+    }
+    const attemptFromApi =
+      resp?.data?.attemptNumber || resp?.data?.attempt_number || resp?.attemptNumber || resp?.attempt_number
+    if (attemptFromApi) {
+      attemptNotice.value = `Terima kasih, ini pengisian kuisioner ke-${attemptFromApi} Anda.`
+    } else {
+      attemptNotice.value = 'Terima kasih, pengisian kuisioner telah tersimpan.'
+    }
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      lookupError.value = 'Endpoint API tidak ditemukan (404). Cek VITE_API_BASE_URL atau rute /responses/submit.'
+    } else {
+      lookupError.value = err?.message || 'Gagal menyimpan ke server.'
+    }
+    return
+  }
+
+  // Simpan lokal untuk riwayat UI (tanpa memanggil API kedua kali)
+  await addSubmission(
+    {
+      type: 'alumni',
+      audience: 'alumni',
+      nama: snapshot.nama || '',
+      prodi: snapshot.prodi || '',
+      fakultas: snapshot.fakultas || '',
+      tahun: snapshot.tahun || '',
+      status: snapshot.status || '',
+      waitMonths: snapshot.bekerja_bulanDapat || snapshot.bekerja_bulanTidak || '',
+      salary: snapshot.bekerja_pendapatan || '',
+      industry:
+        snapshot.bekerja_jenisPerusahaan ||
+        snapshot.wira_jenisPerusahaan ||
+        snapshot.wira_bidang ||
+        '',
+      province: snapshot.bekerja_provinsi || snapshot.studi_lokasi || '',
+      nim: snapshot.nim || nimInput.value,
+      raw: snapshot,
+    },
+    { skipApi: true },
+  )
+  lookupMessage.value = 'Jawaban berhasil dikirim.'
   sent.value = true
+  resetForm()
   setTimeout(() => {
     sent.value = false
   }, 2000)
@@ -532,51 +1028,51 @@ const submitForm = async () => {
     <form class="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow" @submit.prevent="submitForm">
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="block text-sm font-semibold text-slate-900">Nama</label>
+          <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.nama }}</label>
           <input v-model="form.nama" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" required />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-slate-900">NIK</label>
+          <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.nik }}</label>
           <input v-model="form.nik" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" />
         </div>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="block text-sm font-semibold text-slate-900">Alamat</label>
+          <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.alamat }}</label>
           <input v-model="form.alamat" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-slate-900">No HP</label>
+          <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.hp }}</label>
           <input v-model="form.noHp" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" />
         </div>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="block text-sm font-semibold text-slate-900">NIM</label>
+          <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.nim }}</label>
           <input v-model="form.nim" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-slate-900">Fakultas</label>
+          <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.fakultas }}</label>
           <input v-model="form.fakultas" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" />
         </div>
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="block text-sm font-semibold text-slate-900">Program Studi</label>
+          <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.prodi }}</label>
           <input v-model="form.prodi" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-slate-900">Tahun Lulus</label>
+          <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.tahun }}</label>
           <input v-model="form.tahun" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" />
         </div>
       </div>
 
       <div>
-        <label class="block text-sm font-semibold text-slate-900">Status</label>
-        <select v-model="form.status" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2">
+        <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.status }}</label>
+        <select v-model="form.status" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" required>
           <option value="">Pilih status</option>
           <option value="bekerja">Bekerja</option>
           <option value="wiraswasta">Wiraswasta</option>
@@ -697,12 +1193,18 @@ const submitForm = async () => {
               placeholder="Filter provinsi..."
             />
             <select
-              v-model="form.bekerja_provinsi"
+              :value="selectedProvinceCode"
+              @change="handleProvinceSelect($event.target.value)"
               class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2"
+              :disabled="provincesLoading"
             >
               <option value="">Pilih provinsi</option>
-              <option v-for="prov in filteredProvinces" :key="prov" :value="prov">{{ prov }}</option>
+              <option v-for="prov in filteredProvinces" :key="prov.code" :value="prov.code">
+                {{ prov.name }}
+              </option>
             </select>
+            <p v-if="provincesLoading" class="mt-1 text-[11px] text-slate-500">Memuat provinsi...</p>
+            <p v-if="provincesError" class="mt-1 text-[11px] font-semibold text-rose-600">{{ provincesError }}</p>
           </div>
           <div>
             <label class="text-sm font-semibold text-slate-900">Kabupaten/Kota lokasi bekerja</label>
@@ -713,12 +1215,18 @@ const submitForm = async () => {
               placeholder="Filter kab/kota..."
             />
             <select
-              v-model="form.bekerja_kabupaten"
+              :value="selectedKabupatenCode"
+              @change="handleKabupatenSelect($event.target.value)"
               class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2"
+              :disabled="!selectedProvinceCode || regenciesLoading"
             >
               <option value="">Pilih kabupaten/kota</option>
-              <option v-for="kab in filteredKabupaten" :key="kab" :value="kab">{{ kab }}</option>
+              <option v-for="kab in filteredKabupaten" :key="kab.code" :value="kab.code">
+                {{ kab.name }}
+              </option>
             </select>
+            <p v-if="regenciesLoading" class="mt-1 text-[11px] text-slate-500">Memuat kabupaten/kota...</p>
+            <p v-if="regenciesError" class="mt-1 text-[11px] font-semibold text-rose-600">{{ regenciesError }}</p>
           </div>
         </div>
 
@@ -1475,9 +1983,91 @@ const submitForm = async () => {
         </div>
       </div>
 
+      <div v-else-if="form.status === 'belum'" class="space-y-4 rounded-2xl bg-slate-50 p-4 text-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">Pertanyaan umum</p>
+
+        <div>
+          <label class="block text-sm font-semibold text-slate-900">Sumber dana pembiayaan kuliah</label>
+          <select
+            v-model="form.sumberDana"
+            class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2"
+          >
+            <option value="">Pilih sumber dana</option>
+            <option>Biaya Sendiri/Keluarga</option>
+            <option>Beasiswa ADik (Afirmasi Pendidikan Tinggi)</option>
+            <option>Beasiswa KIP-K (Kartu Indonesia Pintar Kuliah)/Bidikmisi</option>
+            <option>Beasiswa PPA (Peningkatan Prestasi Akademik)</option>
+            <option>Beasiswa AFIRMASI</option>
+            <option>Beasiswa Perusahaan/Swasta</option>
+            <option>Lainnya</option>
+          </select>
+        </div>
+
+        <div class="space-y-3 rounded-xl bg-white/60 p-3">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">D. Penilaian Kompetensi Individu</p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div v-for="(label, key) in {
+              etika: 'Etika',
+              keahlian: 'Keahlian berdasarkan bidang',
+              bahasa: 'Bahasa Inggris',
+              teknologi: 'Penggunaan Teknologi Informasi',
+              komunikasi: 'Komunikasi',
+              kerjasama: 'Kerjasama tim',
+              pengembangan: 'Pengembangan diri',
+            }" :key="`belum-ind-${key}`" class="space-y-1">
+              <label class="text-sm font-semibold text-slate-900">{{ label }}</label>
+              <div class="flex flex-wrap gap-2 text-sm text-slate-700">
+                <label v-for="opt in skorOptions" :key="`belum-${key}-${opt}`" class="inline-flex items-center gap-1">
+                  <input
+                    v-model="form.kompetensi_individu[key]"
+                    type="radio"
+                    :value="opt"
+                    class="h-4 w-4"
+                  />
+                  <span>{{ opt }}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3 rounded-xl bg-white/60 p-3">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">E. Penilaian Kompetensi Pembelajaran</p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div v-for="(label, key) in {
+              perkuliahan: 'Perkuliahan',
+              demonstrasi: 'Demonstrasi',
+              riset: 'Proyek riset',
+              magang: 'Magang',
+              praktikum: 'Praktikum',
+              kerjaLapangan: 'Kerja lapangan',
+              diskusi: 'Diskusi',
+            }" :key="`belum-pemb-${key}`" class="space-y-1">
+              <label class="text-sm font-semibold text-slate-900">{{ label }}</label>
+              <div class="flex flex-wrap gap-2 text-sm text-slate-700">
+                <label v-for="opt in skorOptions" :key="`belum-pb-${key}-${opt}`" class="inline-flex items-center gap-1">
+                  <input
+                    v-model="form.kompetensi_pembelajaran[key]"
+                    type="radio"
+                    :value="opt"
+                    class="h-4 w-4"
+                  />
+                  <span>{{ opt }}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
       <div>
-        <label class="block text-sm font-semibold text-slate-900">Masukan singkat</label>
+        <label class="block text-sm font-semibold text-slate-900">{{ alumniLabels.saran }}</label>
         <textarea v-model="form.ekstra" rows="3" class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2" />
+      </div>
+
+      <div v-if="lookupError" class="rounded-lg bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">
+        {{ lookupError }}
       </div>
 
       <div class="flex items-center justify-between pt-2">
@@ -1552,6 +2142,7 @@ const submitForm = async () => {
             <input
               v-model="searchDob"
               type="date"
+              lang="id-ID"
               class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
               required
             />

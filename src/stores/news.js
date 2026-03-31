@@ -15,6 +15,10 @@ const saveNews = () => {
 }
 
 const loadNews = () => {
+  if (canUseApi) {
+    state.items = []
+    return
+  }
   try {
     const raw = localStorage.getItem(STORAGE_NEWS)
     if (raw) {
@@ -138,17 +142,9 @@ export const useNews = () => {
       if (canUseApi) {
         const resp = await contentService.getNews(params)
         const list =
-          Array.isArray(resp)
-            ? resp
-            : Array.isArray(resp?.data)
-              ? resp.data
-              : Array.isArray(resp?.items)
-                ? resp.items
-                : []
-        if (list.length) {
-          state.items = list
-          saveNews()
-        }
+          Array.isArray(resp) ? resp : Array.isArray(resp?.data) ? resp.data : Array.isArray(resp?.items) ? resp.items : []
+        state.items = list
+        saveNews()
       }
     } catch (err) {
       state.error = err?.message || 'Gagal memuat berita'

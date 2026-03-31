@@ -1,56 +1,82 @@
-import apiClient from './apiClient'
+import { get, post, put, del } from './api'
 
-export const getQuestionnaires = (params = {}) =>
-  apiClient.get('/tracer/questionnaires', params)
+// Base dari env: import.meta.env.VITE_API_BASE_URL
+export const getQuestionnaires = (params = {}, requestConfig = {}) =>
+  get('/questionnaires', { params, ...requestConfig })
 
-export const getQuestionnaireById = (id) =>
-  apiClient.get(`/tracer/questionnaires/${id}`)
+export const getQuestionnaireById = (id) => get(`/questionnaires/${id}`)
 
-export const createQuestionnaire = (payload) =>
-  apiClient.post('/tracer/questionnaires', payload)
+export const createQuestionnaire = (payload) => post('/questionnaires', payload)
 
-export const updateQuestionnaire = (id, payload) =>
-  apiClient.put(`/tracer/questionnaires/${id}`, payload)
+export const updateQuestionnaire = (id, payload) => put(`/questionnaires/${id}`, payload)
 
-export const deleteQuestionnaire = (id) =>
-  apiClient.del(`/tracer/questionnaires/${id}`)
+export const deleteQuestionnaire = (id) => del(`/questionnaires/${id}`)
 
 export const getQuestions = (questionnaireId) =>
-  apiClient.get(`/tracer/questionnaires/${questionnaireId}/questions`)
+  get(`/questionnaires/${questionnaireId}/questions`)
 
 export const createQuestion = (questionnaireId, payload) =>
-  apiClient.post(`/tracer/questionnaires/${questionnaireId}/questions`, payload)
+  post(`/questionnaires/${questionnaireId}/questions`, payload)
 
 export const updateQuestion = (questionnaireId, questionId, payload) =>
-  apiClient.put(`/tracer/questionnaires/${questionnaireId}/questions/${questionId}`, payload)
+  put(`/questionnaires/${questionnaireId}/questions/${questionId}`, payload)
 
 export const deleteQuestion = (questionnaireId, questionId) =>
-  apiClient.del(`/tracer/questionnaires/${questionnaireId}/questions/${questionId}`)
+  del(`/questionnaires/${questionnaireId}/questions/${questionId}`)
 
-export const getResponses = (questionnaireId, query = {}) =>
-  apiClient.get(`/tracer/questionnaires/${questionnaireId}/responses`, query)
+export const getResponses = (questionnaireId, query = {}, requestConfig = {}) =>
+  get(`/questionnaires/${questionnaireId}/responses`, { params: query, ...requestConfig })
 
-export const submitAlumniAnswer = (payload) =>
-  apiClient.post('/tracer/submissions', payload)
+export const getResponsesSummary = (questionnaireId, query = {}, requestConfig = {}) =>
+  get(`/questionnaires/${questionnaireId}/responses/summary`, { params: query, ...requestConfig })
+
+export const requestResponsesExport = (payload = {}) =>
+  post('/exports/responses', payload)
+
+export const getExportStatus = (exportId) =>
+  get(`/exports/${exportId}`)
+
+export const downloadExport = (exportId, config = {}) =>
+  get(`/exports/${exportId}/download`, config)
+
+export const submitAlumniAnswer = (payload) => post('/responses/submit', payload)
 
 export const submitBulkSubmissions = (payloads = []) =>
-  apiClient.post('/tracer/submissions/bulk', { data: payloads })
+  post('/submissions/bulk', { data: payloads })
 
-export const deleteSubmission = (submissionId) =>
-  apiClient.del(`/tracer/submissions/${submissionId}`)
+export const deleteSubmission = async (submissionId) => {
+  const id = encodeURIComponent(String(submissionId ?? '').trim())
+  try {
+    // Route aktif di backend: DELETE /responses/{id}
+    return await del(`/responses/${id}`)
+  } catch (err) {
+    if (err?.response?.status !== 404) throw err
+    // Fallback kompatibilitas lama
+    return del(`/submissions/${id}`)
+  }
+}
 
-export const getSubmissionById = (submissionId) =>
-  apiClient.get(`/tracer/submissions/${submissionId}`)
+export const getSubmissionById = async (submissionId) => {
+  const id = encodeURIComponent(String(submissionId ?? '').trim())
+  try {
+    // Route aktif di backend: GET /responses/attempt/{attempt_id}
+    return await get(`/responses/attempt/${id}`)
+  } catch (err) {
+    if (err?.response?.status !== 404) throw err
+    // Fallback kompatibilitas lama
+    return get(`/submissions/${id}`)
+  }
+}
 
-export const getActiveQuestionnaire = (audience = 'alumni') =>
-  apiClient.get('/tracer/questionnaires/active', { audience })
+export const getActiveQuestionnaire = (audience = 'alumni', requestConfig = {}) =>
+  get('/questionnaires/active', { params: { audience }, ...requestConfig })
 
-// Bank soal global
-export const getQuestionBank = () => apiClient.get('/tracer/question-bank')
-export const createQuestionBankItem = (payload) => apiClient.post('/tracer/question-bank', payload)
+// Bank soal global (jika tersedia di backend)
+export const getQuestionBank = () => get('/question-bank')
+export const createQuestionBankItem = (payload) => post('/question-bank', payload)
 export const updateQuestionBankItem = (id, payload) =>
-  apiClient.put(`/tracer/question-bank/${id}`, payload)
-export const deleteQuestionBankItem = (id) => apiClient.del(`/tracer/question-bank/${id}`)
+  put(`/question-bank/${id}`, payload)
+export const deleteQuestionBankItem = (id) => del(`/question-bank/${id}`)
 
 export default {
   getQuestionnaires,
@@ -63,7 +89,12 @@ export default {
   updateQuestion,
   deleteQuestion,
   getResponses,
+  getResponsesSummary,
+  requestResponsesExport,
+  getExportStatus,
+  downloadExport,
   submitAlumniAnswer,
+  submitBulkSubmissions,
   deleteSubmission,
   getSubmissionById,
   getActiveQuestionnaire,

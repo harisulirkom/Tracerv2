@@ -3,8 +3,13 @@ import tracerService from '@/services/tracerService'
 
 const STORAGE_KEY = 'tracer_admin_questionnaires'
 const AUDIENCES = ['alumni', 'pengguna', 'umum']
-const normalizeAudience = (audience) =>
-  AUDIENCES.includes(audience) ? audience : 'alumni'
+const normalizeAudience = (audience) => {
+  const value = String(audience || '').trim().toLowerCase()
+  if (AUDIENCES.includes(value)) return value
+  if (value.startsWith('pengguna')) return 'pengguna'
+  if (value.startsWith('umum')) return 'umum'
+  return 'alumni'
+}
 const canUseApi = !!import.meta.env.VITE_API_BASE_URL
 
 const normalizeFromApi = (payload) => {
@@ -108,8 +113,15 @@ const resetQuestionnaires = () => {
 
 const ensureQuestions = () => {
   state.items.forEach((item) => {
+    const fallbackAudience =
+      item.audience ||
+      item.targetAudience ||
+      item.targetRespondent ||
+      item.target_responden ||
+      item.target ||
+      ''
     // eslint-disable-next-line no-param-reassign
-    item.audience = normalizeAudience(item.audience)
+    item.audience = normalizeAudience(fallbackAudience)
     if (!Array.isArray(item.questions) || !item.questions.length) {
       // eslint-disable-next-line no-param-reassign
       item.questions = cloneQuestions(null, item.audience)
@@ -118,6 +130,27 @@ const ensureQuestions = () => {
       // eslint-disable-next-line no-param-reassign
       item.extraQuestions = []
     }
+  })
+}
+
+const enforceSingleActivePerAudience = () => {
+  AUDIENCES.forEach((aud) => {
+    let foundActiveId = null
+    state.items.forEach((item) => {
+      const normalized = normalizeAudience(item.audience)
+      if (normalized !== aud) return
+      if (item.active && !foundActiveId) {
+        foundActiveId = item.id
+      }
+    })
+    state.items = state.items.map((item) => {
+      const normalized = normalizeAudience(item.audience)
+      if (normalized !== aud) return item
+      if (foundActiveId) {
+        return { ...item, active: item.id === foundActiveId }
+      }
+      return item
+    })
   })
 }
 
@@ -259,6 +292,7 @@ export const useQuestionnaires = () => {
     }
 
     state.items.unshift(item)
+    enforceSingleActivePerAudience()
     saveQuestionnaires()
   }
 
@@ -297,6 +331,7 @@ export const useQuestionnaires = () => {
     }
 
     state.items.splice(index, 1, updated)
+    enforceSingleActivePerAudience()
     saveQuestionnaires()
     return true
   }
@@ -338,30 +373,89 @@ export const useQuestionnaires = () => {
       }
     })
 
+    enforceSingleActivePerAudience()
     saveQuestionnaires()
     return true
   }
 
   // --- API helpers (opsional; fallback ke localStorage jika API gagal) ---
-  const fetchQuestionnaires = async (params = {}) => {
+  const fetchActiveFallbackList = async (requestConfig = {}) => {
+    if (!canUseApi) return []
+    const audiences = ['alumni', 'pengguna', 'umum']
+    const list = []
+    await Promise.all(
+      audiences.map(async (audience) => {
+        try {
+          const resp = await tracerService.getActiveQuestionnaire(audience, requestConfig)
+          const item = resp?.data || resp
+          if (item?.id) list.push(item)
+        } catch (err) {
+          // ignore per-audience errors, fallback continues with available items
+        }
+      }),
+    )
+    const uniqueMap = new Map()
+    list.forEach((item) => {
+      uniqueMap.set(String(item.id), item)
+    })
+    return Array.from(uniqueMap.values())
+  }
+
+  const applyListToState = (list = []) => {
+    state.items = Array.isArray(list) ? list : []
+    ensureQuestions()
+    ensureDefaultByAudience()
+    enforceSingleActivePerAudience()
+    saveQuestionnaires()
+  }
+
+  const fetchQuestionnaires = async (params = {}, options = {}) => {
+    const publicMode = Boolean(options?.publicMode)
+    const requestConfig = {
+      ...(options?.requestConfig || {}),
+      ...(publicMode ? { skipAuthRedirect: true } : {}),
+    }
     state.loading = true
     state.error = ''
     try {
       if (canUseApi) {
-        const resp = await tracerService.getQuestionnaires(params)
-        const list = normalizeFromApi(resp)
+        let list = []
+        if (publicMode) {
+          list = await fetchActiveFallbackList(requestConfig)
+        } else {
+          const resp = await tracerService.getQuestionnaires(params, requestConfig)
+          list = normalizeFromApi(resp)
+          if (!list.length) {
+            list = await fetchActiveFallbackList(requestConfig)
+          }
+        }
         if (list.length) {
-          state.items = list
-          ensureQuestions()
-          saveQuestionnaires()
+          applyListToState(list)
+        } else if (!state.items.length) {
+          loadQuestionnaires()
         }
       } else {
         loadQuestionnaires()
       }
     } catch (err) {
-      state.error = err?.message || 'Gagal memuat kuisioner'
+      if (!publicMode) {
+        state.error = err?.message || 'Gagal memuat kuisioner'
+      } else {
+        state.error = ''
+      }
+      if ((!state.items.length || publicMode) && canUseApi) {
+        const fallbackList = await fetchActiveFallbackList(requestConfig)
+        if (fallbackList.length) {
+          applyListToState(fallbackList)
+          return
+        }
+      }
       if (!state.items.length) {
         loadQuestionnaires()
+      }
+      if (!state.items.length) {
+        ensureDefaultByAudience()
+        saveQuestionnaires()
       }
     } finally {
       state.loading = false
@@ -378,6 +472,7 @@ export const useQuestionnaires = () => {
     if (item) {
       state.items.unshift(item)
       ensureQuestions()
+      enforceSingleActivePerAudience()
       saveQuestionnaires()
     }
   }
@@ -387,7 +482,10 @@ export const useQuestionnaires = () => {
       updateQuestionnaire(id, payload)
       return
     }
-    const resp = await tracerService.updateQuestionnaire(id, payload)
+    const current = state.items.find((q) => q.id === id)
+    const normalizedAudience = normalizeAudience(payload.audience || current?.audience)
+    const body = { ...payload, audience: normalizedAudience }
+    const resp = await tracerService.updateQuestionnaire(id, body)
     const updated = resp?.data || resp
     if (updated) {
       const idx = state.items.findIndex((item) => item.id === id)
@@ -395,6 +493,7 @@ export const useQuestionnaires = () => {
         state.items.splice(idx, 1, updated)
       }
       ensureQuestions()
+      enforceSingleActivePerAudience()
       saveQuestionnaires()
     }
   }
@@ -413,12 +512,14 @@ export const useQuestionnaires = () => {
     }
   }
 
-  const fetchActiveQuestionnaire = async (audience = 'alumni') => {
+  const fetchActiveQuestionnaire = async (audience = 'alumni', options = {}) => {
+    const requestConfig = options?.requestConfig || {}
+    const silent = Boolean(options?.silent)
     state.loading = true
     state.error = ''
     try {
       if (canUseApi) {
-        const resp = await tracerService.getActiveQuestionnaire(audience)
+        const resp = await tracerService.getActiveQuestionnaire(audience, requestConfig)
         const item = resp?.data || resp
         if (item?.id) {
           const idx = state.items.findIndex((q) => q.id === item.id)
@@ -428,13 +529,20 @@ export const useQuestionnaires = () => {
             state.items.unshift(item)
           }
           ensureQuestions()
+          enforceSingleActivePerAudience()
           saveQuestionnaires()
           return item
         }
       }
       return findActiveByAudience(audience)
     } catch (err) {
-      state.error = err?.message || 'Gagal memuat kuisioner aktif'
+      const status = err?.response?.status
+      if (status === 404) {
+        // Backend belum menyediakan kuisioner aktif; gunakan fallback lokal tanpa menampilkan error 404.
+        state.error = ''
+        return findActiveByAudience(audience)
+      }
+      state.error = silent ? '' : err?.message || 'Gagal memuat kuisioner aktif'
       return findActiveByAudience(audience)
     } finally {
       state.loading = false
@@ -449,13 +557,17 @@ export const useQuestionnaires = () => {
       if (canUseApi) {
         const resp = await tracerService.getQuestions(questionnaireId)
         const list = normalizeFromApi(resp)
-        if (list.length) {
-          state.questions[questionnaireId] = list
-          return list
-        }
+        state.questions[questionnaireId] = list
+        return list
       }
       return state.questions[questionnaireId] || []
     } catch (err) {
+      const status = err?.response?.status
+      if (status === 404) {
+        // Backend belum menyediakan pertanyaan; hindari badge error.
+        state.questionsError = ''
+        return state.questions[questionnaireId] || []
+      }
       state.questionsError = err?.message || 'Gagal memuat pertanyaan'
       return state.questions[questionnaireId] || []
     } finally {

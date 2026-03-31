@@ -1,7 +1,8 @@
 <script setup>
-import { computed, reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminShell from '../components/AdminShell.vue'
+import LoadingOverlay from '../components/LoadingOverlay.vue'
 import { useArticles } from '../stores/articles'
 
 const router = useRouter()
@@ -11,12 +12,20 @@ const { articles, addArticle, updateArticle, deleteArticle, fetchArticles, loadi
 const mode = ref('create')
 const editingId = ref(null)
 const saving = ref(false)
+const confirmSaveOpen = ref(false)
+const confirmDeleteOpen = ref(false)
+const deleting = ref(false)
+const deleteTarget = ref(null)
 const message = ref('')
 const error = ref('')
 const filterStatus = ref('all')
 const searchQuery = ref('')
 const page = ref(1)
 const pageSize = ref(6)
+const filterTabs = ['all', 'published', 'draft']
+const filterTabContainerRef = ref(null)
+const filterTabRefs = ref([])
+const filterTabIndicator = reactive({ left: 0, top: 0, width: 0, height: 0 })
 
 const form = reactive({
   title: '',
@@ -36,18 +45,32 @@ const resetForm = () => {
   mode.value = 'create'
   message.value = ''
   error.value = ''
+  confirmSaveOpen.value = false
+  confirmDeleteOpen.value = false
+  deleteTarget.value = null
 }
 
-const handleSubmit = async () => {
-  saving.value = true
+const requestSaveSubmit = () => {
   message.value = ''
   error.value = ''
 
   if (!form.title.trim() || !form.summary.trim()) {
     error.value = 'Judul dan ringkasan wajib diisi.'
-    saving.value = false
     return
   }
+  if (saving.value) return
+  confirmSaveOpen.value = true
+}
+
+const closeSaveConfirm = () => {
+  confirmSaveOpen.value = false
+}
+
+const confirmSaveSubmit = async () => {
+  if (saving.value) return
+  confirmSaveOpen.value = false
+
+  saving.value = true
 
   try {
     const payload = {
@@ -85,11 +108,40 @@ const handleEdit = (item) => {
   error.value = ''
 }
 
-const handleDelete = async (id) => {
-  // eslint-disable-next-line no-alert
-  const confirmed = window.confirm('Hapus artikel ini?')
-  if (!confirmed) return
-  await deleteArticle(id)
+const requestDelete = (item) => {
+  if (!item?.id || deleting.value) return
+  deleteTarget.value = {
+    id: item.id,
+    title: item.title || '',
+  }
+  confirmDeleteOpen.value = true
+}
+
+const closeDeleteConfirm = () => {
+  if (deleting.value) return
+  confirmDeleteOpen.value = false
+  deleteTarget.value = null
+}
+
+const confirmDelete = async () => {
+  if (deleting.value || !deleteTarget.value?.id) return
+  deleting.value = true
+  error.value = ''
+
+  const targetId = deleteTarget.value.id
+  try {
+    await deleteArticle(targetId)
+    if (String(editingId.value) === String(targetId)) {
+      resetForm()
+    }
+    message.value = 'Artikel dihapus.'
+    confirmDeleteOpen.value = false
+    deleteTarget.value = null
+  } catch (e) {
+    error.value = 'Terjadi kesalahan saat menghapus artikel.'
+  } finally {
+    deleting.value = false
+  }
 }
 
 const filteredArticles = computed(() => {
@@ -109,6 +161,24 @@ const paginatedArticles = computed(() => {
   return filteredArticles.value.slice(start, start + pageSize.value)
 })
 
+const setFilterTabRef = (el, index) => {
+  if (el) filterTabRefs.value[index] = el
+}
+
+const updateFilterTabIndicator = () => {
+  nextTick(() => {
+    const index = filterTabs.indexOf(filterStatus.value)
+    const tabEl = filterTabRefs.value[index]
+    if (!filterTabContainerRef.value || !tabEl) return
+    const containerRect = filterTabContainerRef.value.getBoundingClientRect()
+    const tabRect = tabEl.getBoundingClientRect()
+    filterTabIndicator.left = tabRect.left - containerRect.left
+    filterTabIndicator.top = tabRect.top - containerRect.top
+    filterTabIndicator.width = tabRect.width
+    filterTabIndicator.height = tabRect.height
+  })
+}
+
 const openInPortal = () => {
   router.push('/artikel')
 }
@@ -119,12 +189,22 @@ const goBack = () => {
 
 onMounted(() => {
   fetchArticles()
+  updateFilterTabIndicator()
+  window.addEventListener('resize', updateFilterTabIndicator)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateFilterTabIndicator)
+})
+
+watch(filterStatus, () => {
+  updateFilterTabIndicator()
 })
 </script>
 
 <template>
   <AdminShell>
-    <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-10">
+    <div class="max-w-6xl px-4 py-6 sm:px-6 lg:px-10">
       <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Artikel & tips</p>
@@ -162,27 +242,44 @@ onMounted(() => {
             </span>
           </div>
             <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-              <div class="inline-flex rounded-full bg-slate-50 p-1">
+              <div
+                ref="filterTabContainerRef"
+                class="relative inline-flex rounded-full bg-slate-50 p-1"
+              >
+                <span
+                  aria-hidden="true"
+                  class="pointer-events-none absolute left-0 top-0 rounded-full bg-white shadow-sm ring-1 ring-slate-200 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                  :style="{
+                    width: filterTabIndicator.width + 'px',
+                    height: filterTabIndicator.height + 'px',
+                    transform: `translate(${filterTabIndicator.left}px, ${filterTabIndicator.top}px)`,
+                    opacity: filterTabIndicator.width ? 0.95 : 0,
+                    filter: filterTabIndicator.width ? 'blur(0.4px)' : 'blur(0px)',
+                  }"
+                ></span>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterStatus === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 0)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterStatus === 'all' ? 'text-slate-900' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterStatus = 'all'"
                 >
                   Semua
                 </button>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterStatus === 'published' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 1)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterStatus === 'published' ? 'text-emerald-700' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterStatus = 'published'"
                 >
                   Publish
                 </button>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterStatus === 'draft' ? 'bg-slate-700 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 2)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterStatus === 'draft' ? 'text-slate-700' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterStatus = 'draft'"
                 >
                   Draft
@@ -237,7 +334,7 @@ onMounted(() => {
                 <button
                   type="button"
                   class="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                  @click="handleDelete(item.id)"
+                  @click="requestDelete(item)"
                 >
                   Hapus
                 </button>
@@ -286,7 +383,7 @@ onMounted(() => {
             </button>
           </div>
 
-          <form class="mt-4 space-y-3 text-sm" @submit.prevent="handleSubmit">
+          <form class="mt-4 space-y-3 text-sm" @submit.prevent="requestSaveSubmit">
             <label class="space-y-1">
               <span class="text-xs font-semibold text-slate-600">Judul *</span>
               <input
@@ -363,5 +460,106 @@ onMounted(() => {
         </section>
       </div>
     </div>
+    <Transition name="alert-dialog">
+      <div
+        v-if="confirmSaveOpen"
+        class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="article-save-confirm-title"
+        aria-describedby="article-save-confirm-desc"
+        @click.self="closeSaveConfirm"
+      >
+        <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+              <h3 id="article-save-confirm-title" class="text-lg font-semibold text-slate-900">
+                {{ mode === 'edit' ? 'Simpan perubahan artikel?' : 'Simpan artikel baru?' }}
+              </h3>
+              <p id="article-save-confirm-desc" class="mt-2 text-sm text-slate-600">
+                {{ mode === 'edit' ? 'Perubahan artikel akan disimpan ke sistem.' : 'Artikel baru akan ditambahkan ke sistem.' }}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="closeSaveConfirm"
+            >
+              Tutup
+            </button>
+          </div>
+          <div class="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              @click="closeSaveConfirm"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              class="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+              :disabled="saving"
+              @click="confirmSaveSubmit"
+            >
+              {{ saving ? 'Menyimpan...' : 'Ya, simpan' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+    <Transition name="alert-dialog">
+      <div
+        v-if="confirmDeleteOpen"
+        class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="article-delete-confirm-title"
+        aria-describedby="article-delete-confirm-desc"
+        @click.self="closeDeleteConfirm"
+      >
+        <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+              <h3 id="article-delete-confirm-title" class="text-lg font-semibold text-slate-900">
+                Hapus artikel ini?
+              </h3>
+              <p id="article-delete-confirm-desc" class="mt-2 text-sm text-slate-600">
+                Artikel
+                <span class="font-semibold text-slate-900">{{ deleteTarget?.title || 'tanpa judul' }}</span>
+                akan dihapus dari sistem.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="closeDeleteConfirm"
+            >
+              Tutup
+            </button>
+          </div>
+          <div class="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              @click="closeDeleteConfirm"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              class="rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-60"
+              :disabled="deleting"
+              @click="confirmDelete"
+            >
+              {{ deleting ? 'Menghapus...' : 'Ya, hapus' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </AdminShell>
+  <LoadingOverlay :active="loading" />
 </template>

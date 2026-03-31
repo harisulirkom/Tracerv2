@@ -28,7 +28,7 @@ const onSubmit = async () => {
     const redirect = route.query.redirect || '/admin'
     router.push(redirect)
   } catch (err) {
-    error.value = err?.message || 'Gagal login.'
+    error.value = err?.response?.data?.message || err?.message || 'Gagal login.'
   } finally {
     loading.value = false
   }
@@ -76,10 +76,11 @@ const onSubmit = async () => {
           {{ error }}
         </p>
         <button
-          class="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-110"
+          class="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed"
           type="submit"
+          :disabled="loading"
         >
-          Masuk
+          {{ loading ? 'Memproses...' : 'Masuk' }}
         </button>
       </form>
     </div>

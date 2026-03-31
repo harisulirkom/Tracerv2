@@ -1,9 +1,13 @@
 import { computed, reactive } from 'vue'
 import alumniService from '@/services/alumniService'
+import api from '@/services/api'
+import { API_TIMEOUT_MS } from '@/services/requestTimeout'
 
 const STORAGE_KEY = 'tracer_admin_alumni'
+const TOKEN_STORAGE_KEY = 'tracer_auth_token'
 const API_URL = import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE_API_BASE_URL}/alumni` : null
 const canUseApi = !!import.meta.env.VITE_API_BASE_URL
+const DEFAULT_PER_PAGE = 'all'
 
 const defaultAlumni = [
   {
@@ -132,6 +136,9 @@ const state = reactive({
   items: [],
   loading: false,
   error: '',
+  meta: {
+    total: 0,
+  },
 })
 
 const randomId = () =>
@@ -143,11 +150,43 @@ const normalizeAlumni = (list = []) => {
     .filter(Boolean)
     .map((item, idx) => {
       const nim = String(item.nim || item.studentId || `AL-${idx + 1}`)
+      const rawEmail =
+        item.email ||
+        item.email_address ||
+        item.mail ||
+        item.alamatEmail ||
+        item.emailAddress ||
+        ''
+      const fallbackEmail = rawEmail || (nim ? `${nim}@import.local` : '')
       const tahunLulus = Number(item.tahunLulus ?? item.graduationYear ?? '') || ''
       const tahunMasuk = Number(item.tahunMasuk ?? item.entryYear ?? (tahunLulus ? tahunLulus - 4 : '')) || ''
+      const rawNik =
+        item.nik ||
+        item.nik_alumni ||
+        item.no_ktp ||
+        item.ktp ||
+        item.nationalId ||
+        item.national_id ||
+        ''
+      const rawNoHp =
+        item.noHp ||
+        item.no_hp ||
+        item.hp ||
+        item.phone ||
+        item.nomor_hp ||
+        item.phone_number ||
+        ''
+      const rawAlamat =
+        item.alamat ||
+        item.alamat_alumni ||
+        item.alamat_mahasiswa ||
+        item.alamat_lengkap ||
+        item.alamat_rumah ||
+        item.address ||
+        ''
       const fallbackNik = `3201${nim.slice(-8).padStart(8, '0')}`
       const fallbackPhone = `0812${nim.slice(-6).padStart(6, '0')}`
-      const fallbackAddress = item.alamat || item.address || `Alamat alumni ${idx + 1}`
+      const fallbackAddress = rawAlamat || `Alamat alumni ${idx + 1}`
       const fallbackDob = item.dob || item.tglLahir || item.birthDate || `${1995 + (idx % 10)}-0${(idx % 9) + 1}-1${idx % 9}`
 
       return {
@@ -158,9 +197,13 @@ const normalizeAlumni = (list = []) => {
         fakultas: item.fakultas || item.faculty || '-',
         tahunLulus,
         tahunMasuk,
-        nik: item.nik || item.nationalId || fallbackNik,
-        noHp: item.noHp || item.phone || fallbackPhone,
+        nik: rawNik || fallbackNik,
+        noHp: rawNoHp || fallbackPhone,
         alamat: fallbackAddress,
+        rawNik: rawNik || '',
+        rawNoHp: rawNoHp || '',
+        rawAlamat: rawAlamat || '',
+        email: fallbackEmail,
         foto: item.foto || item.photoUrl || item.avatar || '',
         dob: fallbackDob,
         updatedAt: item.updatedAt || item.createdAt || today.toISOString(),
@@ -173,6 +216,30 @@ const persist = () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items))
 }
 
+const clearPersisted = () => {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch (e) {
+    // ignore storage errors
+  }
+}
+
+const hasAuthToken = () => {
+  if (api?.defaults?.headers?.common?.Authorization) return true
+  try {
+    const raw = localStorage.getItem(TOKEN_STORAGE_KEY)
+    if (!raw) return false
+    const parsed = JSON.parse(raw)
+    return !!parsed?.token
+  } catch (e) {
+    return false
+  }
+}
+
+const updateMetaTotal = (value) => {
+  state.meta.total = Number(value || 0)
+}
+
 const loadLocal = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -181,6 +248,7 @@ const loadLocal = () => {
       const normalized = normalizeAlumni(parsed)
       if (normalized.length) {
         state.items = normalized
+        updateMetaTotal(normalized.length)
       }
     }
   } catch (e) {
@@ -190,45 +258,101 @@ const loadLocal = () => {
 
 const seedDefault = () => {
   state.items = normalizeAlumni(defaultAlumni)
+  updateMetaTotal(state.items.length)
   persist()
 }
 
 export const useAlumni = () => {
   const alumni = computed(() => state)
 
-  const fetchAlumni = async (params = {}) => {
+  const fetchAlumni = async (params = {}, options = {}) => {
+    const { forceRemote = false } = options
     state.loading = true
     state.error = ''
+    const apiReady = canUseApi && hasAuthToken()
     try {
-      if (canUseApi) {
-        const resp = await alumniService.getAlumni(params)
+      if (apiReady) {
+        const resp = await alumniService.getAlumni({
+          per_page: DEFAULT_PER_PAGE,
+          ...params,
+        }, { timeout: API_TIMEOUT_MS })
         const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
         const normalized = normalizeAlumni(list)
-        if (normalized.length) {
-          state.items = normalized
-          persist()
-          return
+        state.items = normalized
+        clearPersisted()
+        persist()
+        const total = resp?.meta?.total ?? normalized.length
+        updateMetaTotal(total)
+        return normalized
+      }
+
+      if (canUseApi && !apiReady) {
+        state.error = 'Token autentikasi tidak ditemukan. Silakan login ulang untuk memuat data alumni.'
+        if (forceRemote) {
+          state.items = []
+          clearPersisted()
+          return []
         }
       }
-      loadLocal()
-      if (!state.items.length) {
-        seedDefault()
-      }
-    } catch (err) {
-      state.error = err?.message || 'Gagal memuat data alumni.'
-      if (!state.items.length) {
+
         loadLocal()
         if (!state.items.length) {
           seedDefault()
         }
+      return state.items
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 401) {
+        state.error = 'Sesi berakhir atau token tidak valid. Silakan login ulang.'
+        clearPersisted()
+      } else {
+        state.error = err?.message || 'Gagal memuat data alumni.'
       }
+
+      if (!state.items.length) {
+        if (!forceRemote) {
+          loadLocal()
+          if (!state.items.length && !canUseApi) {
+            seedDefault()
+          }
+        } else {
+          state.items = []
+          clearPersisted()
+        }
+      }
+      return state.items
     } finally {
       state.loading = false
     }
   }
 
+  const importAlumniCsv = async (file) => {
+    if (!file) {
+      throw new Error('File CSV belum dipilih.')
+    }
+    if (!canUseApi) {
+      throw new Error('Backend tidak tersedia pada mode offline.')
+    }
+
+    const formData = new FormData()
+    formData.append('alumni_csv', file)
+
+    const response = await api.post('/import-alumni', formData, {
+      headers: { 'Content-Type': undefined },
+    })
+
+    clearPersisted()
+    await fetchAlumni({}, { forceRemote: true })
+    return response
+  }
+
   const addAlumni = (payload) => {
     const nim = payload.nim?.trim() || `AL-${state.items.length + 1}`
+    const email =
+      payload.email?.trim() ||
+      payload.email_address?.trim() ||
+      payload.mail?.trim() ||
+      (nim ? `${nim}@import.local` : '')
     const tahunLulus = Number(payload.tahunLulus) || ''
     const tahunMasuk = Number(payload.tahunMasuk ?? (tahunLulus ? tahunLulus - 4 : '')) || ''
     const fallbackNik = `3201${nim.slice(-8).padStart(8, '0')}`
@@ -241,9 +365,13 @@ export const useAlumni = () => {
       fakultas: payload.fakultas?.trim() || '-',
       tahunLulus,
       tahunMasuk,
+      email,
       nik: (payload.nik || payload.nationalId || fallbackNik).toString(),
       noHp: (payload.noHp || payload.phone || fallbackPhone).toString(),
       alamat: payload.alamat?.trim() || payload.address?.trim() || `Alamat alumni ${state.items.length + 1}`,
+      rawNik: (payload.nik || payload.nationalId || '').toString(),
+      rawNoHp: (payload.noHp || payload.phone || '').toString(),
+      rawAlamat: (payload.alamat || payload.address || '').toString(),
       foto: payload.foto || payload.photoUrl || payload.avatar || '',
       dob: payload.dob || payload.birthDate || payload.tglLahir || '',
       updatedAt: new Date().toISOString(),
@@ -254,13 +382,32 @@ export const useAlumni = () => {
     return item
   }
 
-  const updateAlumni = (id, payload) => {
+  const updateAlumni = async (id, payload) => {
     const index = state.items.findIndex(
       (item) => String(item.id) === String(id) || String(item.nim) === String(id),
     )
     if (index === -1) {
       throw new Error('Alumni tidak ditemukan.')
     }
+
+    const apiReady = canUseApi && hasAuthToken()
+    if (apiReady) {
+      const resp = await alumniService.updateAlumni(id, payload)
+      const updated = resp?.data || resp
+      if (updated) {
+        const normalized = normalizeAlumni([updated])[0]
+        if (normalized) {
+          state.items[index] = {
+            ...state.items[index],
+            ...normalized,
+            updatedAt: normalized.updatedAt || new Date().toISOString(),
+          }
+          persist()
+          return state.items[index]
+        }
+      }
+    }
+
     state.items[index] = {
       ...state.items[index],
       ...payload,
@@ -292,7 +439,7 @@ export const useAlumni = () => {
 
   const exportAlumniCsv = (dataset = state.items) => {
     const rows = dataset.length ? dataset : state.items
-    const header = ['Nama', 'NIM', 'Prodi', 'Fakultas', 'Tahun Lulus']
+    const header = ['Nama', 'NIM', 'Prodi', 'Fakultas', 'Tahun Lulus', 'Email']
     const csv = [header.join(',')]
       .concat(
         rows.map((item) =>
@@ -302,6 +449,7 @@ export const useAlumni = () => {
             item.prodi,
             item.fakultas,
             item.tahunLulus || '',
+            item.email || '',
           ]
             .map((field) => `"${String(field).replace(/"/g, '""')}"`)
             .join(','),
@@ -324,14 +472,14 @@ export const useAlumni = () => {
     state.items = state.items.map((item) => {
       if (targetIds.some((id) => String(id) === String(item.id) || String(id) === String(item.nim))) {
         updated = true
-      return { ...item, sent: true, updatedAt: new Date().toISOString() }
+        return { ...item, sent: true, updatedAt: new Date().toISOString() }
+      }
+      return item
+    })
+    if (updated) {
+      persist()
     }
-    return item
-  })
-  if (updated) {
-    persist()
   }
-}
 
   return {
     alumni,
@@ -342,5 +490,6 @@ export const useAlumni = () => {
     fetchAlumniById,
     exportAlumniCsv,
     markSent,
+    importAlumniCsv,
   }
 }

@@ -13,18 +13,32 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "tailwindcss": "^4.1.17",
-    "vue": "^3.5.22",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "axios": "^1.13.2",
+    "bcryptjs": "^2.4.3",
+    "chart.js": "^4.5.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "jspdf": "^3.0.4",
+    "lucide-react": "^0.562.0",
+    "motion": "^12.34.3",
+    "radix-ui": "^1.4.3",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss": "^4.2.1",
+    "tailwindcss-animate": "^1.0.7",
+    "vue": "^3.5.29",
+    "vue-i18n": "^11.2.8",
     "vue-router": "^4.4.5",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
-    "@vitejs/plugin-vue": "^6.0.1",
+    "@vitejs/plugin-vue": "^6.0.4",
     "autoprefixer": "^10.4.22",
     "jsdom": "^27.2.0",
-    "vite": "^7.1.11",
+    "vite": "^7.3.1",
     "vite-plugin-vue-devtools": "^8.0.3",
-    "vitest": "^4.0.10"
+    "vitest": "^4.0.18"
   }
 }

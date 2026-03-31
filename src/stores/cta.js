@@ -114,6 +114,11 @@ const saveSlides = () => {
 }
 
 const loadSlides = () => {
+  // Default awal supaya UI tidak kosong saat API belum dipanggil
+  if (canUseApi) {
+    state.slides = defaultSlides.map((item, idx) => normalizeSlide({ ...item, order: item.order ?? idx }, item))
+    return
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
@@ -198,13 +203,20 @@ export const useCtaSlides = () => {
         if (canUseApi) {
           const resp = await contentService.getCtas()
           const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
-          if (list.length) {
-            state.slides = list.map((item, idx) => normalizeSlide({ ...item, order: item.order ?? idx }, item))
-            saveSlides()
-          }
+          state.slides =
+            list.length > 0
+              ? list.map((item, idx) => normalizeSlide({ ...item, order: item.order ?? idx }, item))
+              : defaultSlides.map((item, idx) => normalizeSlide({ ...item, order: item.order ?? idx }, item))
+          saveSlides()
         }
       } catch (err) {
         state.error = err?.message || 'Gagal memuat CTA'
+        if (!state.slides.length) {
+          state.slides = defaultSlides.map((item, idx) =>
+            normalizeSlide({ ...item, order: item.order ?? idx }, item),
+          )
+          saveSlides()
+        }
       } finally {
         state.loading = false
       }

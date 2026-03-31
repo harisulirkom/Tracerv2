@@ -1,7 +1,8 @@
 <script setup>
-import { computed, reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminShell from '../components/AdminShell.vue'
+import LoadingOverlay from '../components/LoadingOverlay.vue'
 import { useJobs } from '../stores/jobs'
 
 const router = useRouter()
@@ -10,12 +11,20 @@ const { jobs, addJob, updateJob, deleteJob, fetchJobs, loading, error: loadError
 const mode = ref('create')
 const editingId = ref(null)
 const saving = ref(false)
+const deleting = ref(false)
+const confirmSaveOpen = ref(false)
+const confirmDeleteOpen = ref(false)
+const deleteTarget = ref(null)
 const message = ref('')
 const error = ref('')
 const filterType = ref('all')
 const searchQuery = ref('')
 const page = ref(1)
 const pageSize = ref(8)
+const filterTabs = ['all', 'kerja', 'magang', 'pkl']
+const filterTabContainerRef = ref(null)
+const filterTabRefs = ref([])
+const filterTabIndicator = reactive({ left: 0, top: 0, width: 0, height: 0 })
 
 const typeLabels = {
   kerja: 'Lowongan Kerja',
@@ -71,18 +80,21 @@ const resetForm = () => {
   editingId.value = null
   message.value = ''
   error.value = ''
+  confirmSaveOpen.value = false
+  confirmDeleteOpen.value = false
+  deleteTarget.value = null
 }
 
 const handleSubmit = async () => {
-  saving.value = true
   message.value = ''
   error.value = ''
 
   if (!form.title.trim() || !form.company.trim()) {
     error.value = 'Judul posisi dan nama perusahaan wajib diisi.'
-    saving.value = false
     return
   }
+
+  saving.value = true
 
   try {
     const payload = {
@@ -123,6 +135,28 @@ const handleSubmit = async () => {
   }
 }
 
+const requestSaveSubmit = () => {
+  message.value = ''
+  error.value = ''
+
+  if (!form.title.trim() || !form.company.trim()) {
+    error.value = 'Judul posisi dan nama perusahaan wajib diisi.'
+    return
+  }
+  if (saving.value) return
+  confirmSaveOpen.value = true
+}
+
+const closeSaveConfirm = () => {
+  confirmSaveOpen.value = false
+}
+
+const confirmSaveSubmit = async () => {
+  if (saving.value) return
+  confirmSaveOpen.value = false
+  await handleSubmit()
+}
+
 const handleEdit = (job) => {
   mode.value = 'edit'
   editingId.value = job.id
@@ -148,10 +182,44 @@ const handleEdit = (job) => {
 }
 
 const handleDelete = async (id) => {
-  // eslint-disable-next-line no-alert
-  const confirmed = window.confirm('Hapus lowongan ini?')
-  if (!confirmed) return
-  await deleteJob(id)
+  message.value = ''
+  error.value = ''
+  try {
+    await deleteJob(id)
+    message.value = 'Lowongan dihapus.'
+    if (String(editingId.value) === String(id)) {
+      resetForm()
+    }
+  } catch (e) {
+    error.value = e?.message || 'Gagal menghapus lowongan.'
+  }
+}
+
+const requestDelete = (job) => {
+  if (!job?.id || deleting.value) return
+  deleteTarget.value = {
+    id: job.id,
+    title: job.title || '',
+  }
+  confirmDeleteOpen.value = true
+}
+
+const closeDeleteConfirm = () => {
+  if (deleting.value) return
+  confirmDeleteOpen.value = false
+  deleteTarget.value = null
+}
+
+const confirmDelete = async () => {
+  if (deleting.value || !deleteTarget.value?.id) return
+  deleting.value = true
+  try {
+    await handleDelete(deleteTarget.value.id)
+    confirmDeleteOpen.value = false
+    deleteTarget.value = null
+  } finally {
+    deleting.value = false
+  }
 }
 
 const filteredJobs = computed(() => {
@@ -169,6 +237,24 @@ const paginatedJobs = computed(() => {
   return filteredJobs.value.slice(start, start + pageSize.value)
 })
 
+const setFilterTabRef = (el, index) => {
+  if (el) filterTabRefs.value[index] = el
+}
+
+const updateFilterTabIndicator = () => {
+  nextTick(() => {
+    const index = filterTabs.indexOf(filterType.value)
+    const tabEl = filterTabRefs.value[index]
+    if (!filterTabContainerRef.value || !tabEl) return
+    const containerRect = filterTabContainerRef.value.getBoundingClientRect()
+    const tabRect = tabEl.getBoundingClientRect()
+    filterTabIndicator.left = tabRect.left - containerRect.left
+    filterTabIndicator.top = tabRect.top - containerRect.top
+    filterTabIndicator.width = tabRect.width
+    filterTabIndicator.height = tabRect.height
+  })
+}
+
 const goBack = () => {
   router.push('/admin')
 }
@@ -179,12 +265,22 @@ const openPortal = () => {
 
 onMounted(() => {
   fetchJobs()
+  updateFilterTabIndicator()
+  window.addEventListener('resize', updateFilterTabIndicator)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateFilterTabIndicator)
+})
+
+watch(filterType, () => {
+  updateFilterTabIndicator()
 })
 </script>
 
 <template>
   <AdminShell>
-    <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-10">
+    <div class="max-w-6xl px-4 py-6 sm:px-6 lg:px-10">
       <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Lowongan</p>
@@ -222,35 +318,53 @@ onMounted(() => {
             </div>
             <p v-if="loadError" class="text-xs font-semibold text-rose-600">{{ loadError }}</p>
             <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-              <div class="inline-flex rounded-full bg-slate-50 p-1">
+              <div
+                ref="filterTabContainerRef"
+                class="relative inline-flex rounded-full bg-slate-50 p-1"
+              >
+                <span
+                  aria-hidden="true"
+                  class="pointer-events-none absolute left-0 top-0 rounded-full bg-white shadow-sm ring-1 ring-slate-200 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                  :style="{
+                    width: filterTabIndicator.width + 'px',
+                    height: filterTabIndicator.height + 'px',
+                    transform: `translate(${filterTabIndicator.left}px, ${filterTabIndicator.top}px)`,
+                    opacity: filterTabIndicator.width ? 0.95 : 0,
+                    filter: filterTabIndicator.width ? 'blur(0.4px)' : 'blur(0px)',
+                  }"
+                ></span>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterType === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 0)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterType === 'all' ? 'text-slate-900' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterType = 'all'"
                 >
                   Semua
                 </button>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterType === 'kerja' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 1)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterType === 'kerja' ? 'text-emerald-700' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterType = 'kerja'"
                 >
                   Lowongan kerja
                 </button>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterType === 'magang' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 2)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterType === 'magang' ? 'text-indigo-700' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterType = 'magang'"
                 >
                   Magang
                 </button>
                 <button
                   type="button"
-                  class="rounded-full px-3 py-1 font-semibold"
-                  :class="filterType === 'pkl' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:text-slate-900'"
+                  :ref="(el) => setFilterTabRef(el, 3)"
+                  class="relative z-10 rounded-full px-3 py-1 font-semibold transition-colors duration-200 ease-out"
+                  :class="filterType === 'pkl' ? 'text-amber-700' : 'text-slate-500 hover:bg-white/60 hover:text-slate-900'"
                   @click="filterType = 'pkl'"
                 >
                   PKL
@@ -318,7 +432,7 @@ onMounted(() => {
                 <button
                   type="button"
                   class="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                  @click="handleDelete(job.id)"
+                  @click="requestDelete(job)"
                 >
                   Hapus
                 </button>
@@ -368,7 +482,7 @@ onMounted(() => {
             </button>
           </div>
 
-          <form class="mt-4 space-y-3 text-sm" @submit.prevent="handleSubmit">
+          <form class="mt-4 space-y-3 text-sm" @submit.prevent="requestSaveSubmit">
             <div class="grid gap-3">
               <label class="space-y-1">
                 <span class="text-xs font-semibold text-slate-600">Judul posisi *</span>
@@ -575,5 +689,108 @@ onMounted(() => {
         </section>
       </div>
     </div>
+    <Transition name="alert-dialog">
+      <div
+        v-if="confirmSaveOpen"
+        class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="job-save-confirm-title"
+        aria-describedby="job-save-confirm-desc"
+        @click.self="closeSaveConfirm"
+      >
+        <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+              <h3 id="job-save-confirm-title" class="text-lg font-semibold text-slate-900">
+                {{ mode === 'edit' ? 'Simpan perubahan lowongan?' : 'Simpan lowongan baru?' }}
+              </h3>
+              <p id="job-save-confirm-desc" class="mt-2 text-sm text-slate-600">
+                Lowongan
+                <span class="font-semibold text-slate-900">{{ form.title || 'tanpa judul' }}</span>
+                akan disimpan ke sistem.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="closeSaveConfirm"
+            >
+              Tutup
+            </button>
+          </div>
+          <div class="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              @click="closeSaveConfirm"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              class="rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+              :disabled="saving"
+              @click="confirmSaveSubmit"
+            >
+              {{ saving ? 'Menyimpan...' : 'Ya, simpan' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+    <Transition name="alert-dialog">
+      <div
+        v-if="confirmDeleteOpen"
+        class="alert-dialog-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/50 px-4 py-6"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="job-delete-confirm-title"
+        aria-describedby="job-delete-confirm-desc"
+        @click.self="closeDeleteConfirm"
+      >
+        <div class="alert-dialog-panel w-full max-w-md rounded-2xl bg-white p-6 shadow-xl shadow-slate-900/20">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
+              <h3 id="job-delete-confirm-title" class="text-lg font-semibold text-slate-900">
+                Hapus lowongan ini?
+              </h3>
+              <p id="job-delete-confirm-desc" class="mt-2 text-sm text-slate-600">
+                Lowongan
+                <span class="font-semibold text-slate-900">{{ deleteTarget?.title || 'tanpa judul' }}</span>
+                akan dihapus dari sistem.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              @click="closeDeleteConfirm"
+            >
+              Tutup
+            </button>
+          </div>
+          <div class="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              @click="closeDeleteConfirm"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              class="rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:opacity-60"
+              :disabled="deleting"
+              @click="confirmDelete"
+            >
+              {{ deleting ? 'Menghapus...' : 'Ya, hapus' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </AdminShell>
+  <LoadingOverlay :active="loading" />
 </template>

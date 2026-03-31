@@ -10,6 +10,17 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1/ModulCDC/public',
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))

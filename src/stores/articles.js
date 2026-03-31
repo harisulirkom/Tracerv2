@@ -62,6 +62,10 @@ const saveArticles = () => {
 }
 
 const loadArticles = () => {
+  if (canUseApi) {
+    state.items = []
+    return
+  }
   try {
     const raw = localStorage.getItem(STORAGE_ARTICLES)
     if (raw) {
@@ -91,11 +95,9 @@ export const useArticles = () => {
       if (canUseApi) {
         const resp = await contentService.getNews(params) // reuse news endpoint for artikel/berita
         const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
-        if (list.length) {
-          state.items = list
-          saveArticles()
-          return
-        }
+        state.items = list
+        saveArticles()
+        return
       }
       if (!state.items.length) loadArticles()
     } catch (err) {
