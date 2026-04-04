@@ -1,0 +1,129 @@
+{
+  "baseUrl": "http://127.0.0.1:5173",
+  "testedAt": "2026-02-27T02:51:08.930Z",
+  "totalChecks": 12,
+  "failedChecks": 0,
+  "suspiciousCount": 0,
+  "results": [
+    {
+      "locale": "id",
+      "route": "home",
+      "url": "http://127.0.0.1:5173/",
+      "actionOk": true,
+      "actionNote": "home rendered",
+      "suspicious": [],
+      "sampleText": "CDC UIN Kediri Selamat Datang di Career Development Center UIN Syekh Wasil Kediri Wadah Pengembangan Karier, Tracer Study & Kemitraan Industri. Masuk Portal CDC Lihat layanan -> Tracer study Portal CDC Kemitraan industri Respon masuk Live Target 57% Program aktif 32 Mitra industri 34 \"Kolaborasi kampus x industri untuk kesiapan karier.\" LAYANAN Semua yang dibutuhkan tracer study Mulai isi kuisioner -> Realtime Pengumpulan Data Cepat Kirim kuisioner multi-channel dengan notifikasi otomatis. Insight Analitik dan Laporan Pantau tingkat respon, tren karier, dan persebaran alumni. Opsional Integrasi & Ekspor Ekspor ke CSV/Excel atau hubungkan ke BI tools favorit. Keamanan Keamanan Data Akses berb",
+      "error": ""
+    },
+    {
+      "locale": "id",
+      "route": "lowongan",
+      "url": "http://127.0.0.1:5173/lowongan",
+      "actionOk": true,
+      "actionNote": "opened modal: Analis Data Pendidikan",
+      "suspicious": [],
+      "sampleText": "LOWONGAN KERJA Portal lowongan dan magang CDC UIN Kediri Jelajahi peluang terbaru, temukan lowongan sesuai fakultas/prodi, dan bangun kolaborasi dengan mitra industri. Lihat lowongan terbaru Submit lowongan UPDATE HARIAN Lowongan Terbaru Kumpulan posting pekerjaan dan magang paling baru yang masuk ke CDC UIN Kediri. Katalog Filter Notifikasi FILTER PRODI Lowongan Berdasarkan Fakultas/Prodi Filter peluang yang relevan dengan jurusan, konsentrasi, atau minat alumni. Katalog Filter Notifikasi PKL Lowongan Magang Program magang/PKL yang dikurasi bersama mitra industri untuk mahasiswa dan alumni baru. Katalog Filter Notifikasi MITRA Perusahaan Mitra Profil singkat perusahaan rekanan serta daftar ",
+      "error": ""
+    },
+    {
+      "locale": "id",
+      "route": "berita",
+      "url": "http://127.0.0.1:5173/berita",
+      "actionOk": true,
+      "actionNote": "opened detail: Artikel Percobaan",
+      "suspicious": [],
+      "sampleText": "BERITA Kabar terbaru tracer study Ikuti pengumuman resmi, pembaruan sistem, dan agenda penting CDC untuk alumni. Semua 9 Umum 9 UMUM 23 Februari 2026 Artikel Percobaan RIngkasan artikel percobaan Baca selengkapnya UMUM 09 Januari 2026 Tracer Study 2025 resmi diluncurkan Pengisian kuisioner tracer study 2025 dibuka untuk seluruh alumni lintas angkatan. Baca selengkapnya UMUM 09 Januari 2026 Career Fair & Campus Hiring 2025 Lebih dari 30 perusahaan mitra membuka booth rekrutmen di aula kampus minggu depan. Baca selengkapnya UMUM 09 Januari 2026 Bootcamp Softskill Digital Batch 2 Program intensif 2 minggu untuk public speaking, presentasi, dan branding profesional. Baca selengkapnya UMUM 09 Jan",
+      "error": ""
+    },
+    {
+      "locale": "id",
+      "route": "artikel",
+      "url": "http://127.0.0.1:5173/artikel",
+      "actionOk": true,
+      "actionNote": "opened modal: Artikel Percobaan",
+      "suspicious": [],
+      "sampleText": "ARTIKEL & TIPS KARIER Semua artikel & konten Kumpulan panduan singkat untuk persiapan karier, lowongan, dan tips profesional. Publish 23/2/2026 Artikel Percobaan RIngkasan artikel percobaan Lihat rincian Publish 9/1/2026 Tracer Study 2025 resmi diluncurkan Pengisian kuisioner tracer study 2025 dibuka untuk seluruh alumni lintas angkatan. Lihat rincian Publish 9/1/2026 Career Fair & Campus Hiring 2025 Lebih dari 30 perusahaan mitra membuka booth rekrutmen di aula kampus minggu depan. Lihat rincian Publish 9/1/2026 Bootcamp Softskill Digital Batch 2 Program intensif 2 minggu untuk public speaking, presentasi, dan branding profesional. Lihat rincian Publish 9/1/2026 Rilis dashboard baru untuk p",
+      "error": ""
+    },
+    {
+      "locale": "en",
+      "route": "home",
+      "url": "http://127.0.0.1:5173/",
+      "actionOk": true,
+      "actionNote": "home rendered",
+      "suspicious": [],
+      "sampleText": "CDC UIN Kediri Welcome to the Career Development Center UIN Sheikh Wasil Kediri Career Development Forum, Tracer Study & Industrial Partnership. Enter the CDC Portal View services -> Tracer study Portal CDC Industry partnerships Incoming responses Live Target 57% Active program 32 Industry partners 34 \"Campus x industry collaboration for career readiness.\" SERVICES Everything for tracer study Start questionnaire -> Realtime Fast Data Collection Send multi-channel questionnaires with automatic notifications. Insight Analytics and Reports Monitor response rates, career trends, and alumni distribution. Optional Integration & Export Export to CSV/Excel or connect to your favorite BI tools. Secur",
+      "error": ""
+    },
+    {
+      "locale": "en",
+      "route": "lowongan",
+      "url": "http://127.0.0.1:5173/lowongan",
+      "actionOk": true,
+      "actionNote": "opened modal: Education Data Analyst",
+      "suspicious": [],
+      "sampleText": "JOB VACANCIES CDC UIN Kediri job and internship portal Explore the latest opportunities, find vacancies by faculty/major, and build collaboration with industry partners. View latest vacancies Submit vacancy DAILY UPDATES Latest Vacancies A collection of the newest job and internship postings received by CDC UIN Kediri. Catalog Filter Notifications MAJOR FILTER Vacancies by Faculty/Major Filter opportunities relevant to alumni majors, concentrations, or interests. Catalog Filter Notifications INTERNSHIP Internship Vacancies Internship programs curated with industry partners for students and recent alumni. Catalog Filter Notifications PARTNER Partner Companies Brief partner profiles and active",
+      "error": ""
+    },
+    {
+      "locale": "en",
+      "route": "berita",
+      "url": "http://127.0.0.1:5173/berita",
+      "actionOk": true,
+      "actionNote": "opened detail: Trial Article",
+      "suspicious": [],
+      "sampleText": "NEWS Latest tracer study updates Follow official announcements, system updates, and key CDC agendas for alumni. All 9 General 9 GENERAL February 23, 2026 Trial Article Summary of trial article Read more GENERAL January 09, 2026 Tracer Study 2025 officially launched Completing the 2025 tracer study questionnaire is open to all alumni across generations. Read more GENERAL January 09, 2026 Career Fair & Campus Hiring 2025 More than 30 partner companies are opening recruitment booths in campus halls next week. Read more GENERAL January 09, 2026 Bootcamp Softskill Digital Batch 2 2 week intensive program for public speaking, presentations and professional branding. Read more GENERAL January 09, 2",
+      "error": ""
+    },
+    {
+      "locale": "en",
+      "route": "artikel",
+      "url": "http://127.0.0.1:5173/artikel",
+      "actionOk": true,
+      "actionNote": "opened modal: Trial Article",
+      "suspicious": [],
+      "sampleText": "CAREER ARTICLES & TIPS All articles & content A collection of quick guides for career preparation, vacancies, and professional tips. Published 2/23/2026 Trial Article Summary of trial article View details Published 1/9/2026 Tracer Study 2025 officially launched Completing the 2025 tracer study questionnaire is open to all alumni across generations. View details Published 1/9/2026 Career Fair & Campus Hiring 2025 More than 30 partner companies are opening recruitment booths in campus halls next week. View details Published 1/9/2026 Bootcamp Softskill Digital Batch 2 2 week intensive program for public speaking, presentations and professional branding. View details Published 1/9/2026 Release n",
+      "error": ""
+    },
+    {
+      "locale": "ar",
+      "route": "home",
+      "url": "http://127.0.0.1:5173/",
+      "actionOk": true,
+      "actionNote": "home rendered",
+      "suspicious": [],
+      "sampleText": "مركز السيطرة على الأمراض UIN كيديري مرحباً بكم في مركز التطوير الوظيفي UIN الشيخ واصل كديري منتدى التطوير الوظيفي، دراسة التتبع والشراكة الصناعية. أدخل إلى بوابة مركز السيطرة على الأمراض عرض الخدمات -> دراسة التتبع بوابة مركز السيطرة على الأمراض شراكات الصناعة الردود الواردة يعيش الهدف 57% برنامج نشط 32 شركاء الصناعة 34 \"Campus x التعاون الصناعي من أجل الاستعداد الوظيفي.\" الخدمات كل ما تحتاجه دراسة التتبع ابدأ الاستبيان -> فوري جمع بيانات سريع أرسل الاستبيانات عبر قنوات متعددة مع إشعارات تلقائية. رؤى التحليلات والتقارير تابع معدل الاستجابة واتجاهات المسار المهني وانتشار الخريجين. اختياري التكامل والتصدير تصدير إلى CSV/Excel أو الربط مع أدوات BI المفضلة. أمان أمن البيانات صلاحيات حسب الدور وت",
+      "error": ""
+    },
+    {
+      "locale": "ar",
+      "route": "lowongan",
+      "url": "http://127.0.0.1:5173/lowongan",
+      "actionOk": true,
+      "actionNote": "opened modal: محلل بيانات التعليم",
+      "suspicious": [],
+      "sampleText": "الوظائف بوابة الوظائف والتدريب CDC UIN Kediri استكشف أحدث الفرص، واعثر على الوظائف حسب الكلية/التخصص، وابنِ تعاونًا مع شركاء الصناعة. عرض أحدث الوظائف إرسال وظيفة تحديث يومي أحدث الوظائف مجموعة من أحدث إعلانات الوظائف والتدريب الواردة إلى CDC UIN Kediri. كتالوج تصفية إشعارات تصفية التخصص وظائف حسب الكلية/التخصص تصفية الفرص المناسبة للتخصص أو الاهتمام أو المسار الأكاديمي للخريجين. كتالوج تصفية إشعارات تدريب فرص التدريب برامج تدريب/PKL مُنسّقة مع شركاء الصناعة للطلاب والخريجين الجدد. كتالوج تصفية إشعارات شريك الشركات الشريكة نبذة عن الشركات الشريكة وقائمة الوظائف النشطة من كل شريك. كتالوج تصفية إشعارات أحدث الوظائف أحدث الكتالوج والتفاصيل الكاملة اضغط عرض التفاصيل لفتح تفاصيل الوظيفة. الكل وظا",
+      "error": ""
+    },
+    {
+      "locale": "ar",
+      "route": "berita",
+      "url": "http://127.0.0.1:5173/berita",
+      "actionOk": true,
+      "actionNote": "opened detail: المادة المحاكمة",
+      "suspicious": [],
+      "sampleText": "الأخبار آخر تحديثات دراسة التتبع تابع الإعلانات الرسمية وتحديثات النظام وأهم أجندات CDC للخريجين. الكل 9 عام 9 عام ٢٣ فبراير ٢٠٢٦ المادة المحاكمة ملخص المقال التجريبي قراءة المزيد عام ٠٩ يناير ٢٠٢٦ تم إطلاق دراسة التتبع 2025 رسميًا إن استكمال استبيان دراسة التتبع لعام 2025 مفتوح لجميع الخريجين عبر الأجيال. قراءة المزيد عام ٠٩ يناير ٢٠٢٦ معرض التوظيف والتوظيف في الحرم الجامعي 2025 ستفتتح أكثر من 30 شركة شريكة أكشاك توظيف في قاعات الحرم الجامعي الأسبوع المقبل. قراءة المزيد عام ٠٩ يناير ٢٠٢٦ المعسكر التدريبي Softskill الدفعة الرقمية 2 برنامج مكثف لمدة أسبوعين للتحدث أمام الجمهور والعروض التقديمية والعلامات التجارية الاحترافية. قراءة المزيد عام ٠٩ يناير ٢٠٢٦ إطلاق لوحة تحكم جديدة لتتبع الخريجين ",
+      "error": ""
+    },
+    {
+      "locale": "ar",
+      "route": "artikel",
+      "url": "http://127.0.0.1:5173/artikel",
+      "actionOk": true,
+      "actionNote": "opened modal: المادة المحاكمة",
+      "suspicious": [],
+      "sampleText": "مقالات ونصائح مهنية جميع المقالات والمحتوى مجموعة أدلة مختصرة للتحضير المهني والوظائف والنصائح الاحترافية. منشور ٢٣‏/٢‏/٢٠٢٦ المادة المحاكمة ملخص المقال التجريبي عرض التفاصيل منشور ٩‏/١‏/٢٠٢٦ تم إطلاق دراسة التتبع 2025 رسميًا إن استكمال استبيان دراسة التتبع لعام 2025 مفتوح لجميع الخريجين عبر الأجيال. عرض التفاصيل منشور ٩‏/١‏/٢٠٢٦ معرض التوظيف والتوظيف في الحرم الجامعي 2025 ستفتتح أكثر من 30 شركة شريكة أكشاك توظيف في قاعات الحرم الجامعي الأسبوع المقبل. عرض التفاصيل منشور ٩‏/١‏/٢٠٢٦ المعسكر التدريبي Softskill الدفعة الرقمية 2 برنامج مكثف لمدة أسبوعين للتحدث أمام الجمهور والعروض التقديمية والعلامات التجارية الاحترافية. عرض التفاصيل منشور ٩‏/١‏/٢٠٢٦ إطلاق لوحة تحكم جديدة لتتبع الخريجين تعرض أحدث",
+      "error": ""
+    }
+  ]
+}

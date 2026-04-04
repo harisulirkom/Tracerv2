@@ -20,6 +20,7 @@ import AdminKuisionerView from './views/AdminKuisionerView.vue'
 import AdminKuisionerQuestionsView from './views/AdminKuisionerQuestionsView.vue'
 import AdminBankSoalView from './views/AdminBankSoalView.vue'
 import AdminKuisionerDetailView from './views/AdminKuisionerDetailView.vue'
+import AdminTracerAccreditationView from './views/AdminTracerAccreditationView.vue'
 import AdminCtaView from './views/AdminCtaView.vue'
 import AdminLowonganView from './views/AdminLowonganView.vue'
 import AdminArtikelView from './views/AdminArtikelView.vue'
@@ -76,6 +77,12 @@ const routes = [
     ],
   },
   { path: '/admin/dashboard-tracer', name: 'TracerDashboard', component: TracerDashboardView, meta: { requiresAuth: true } },
+  {
+    path: '/admin/tracer-akreditasi',
+    name: 'AdminTracerAccreditation',
+    component: AdminTracerAccreditationView,
+    meta: { requiresAuth: true },
+  },
   { path: '/admin', name: 'Admin', component: AdminView, meta: { requiresAuth: true } },
   { path: '/admin/profile', name: 'AdminProfile', component: AdminProfileView, meta: { requiresAuth: true } },
   { path: '/admin/berita', name: 'AdminBerita', component: AdminBeritaView, meta: { requiresAuth: true } },
@@ -205,6 +212,8 @@ router.beforeEach((to, from, next) => {
       path === '/admin/profile' ||
       path === '/admin/kuisioner' ||
       path.startsWith('/admin/kuisioner/') ||
+      path === '/admin/tracer-akreditasi' ||
+      path.startsWith('/admin/tracer-akreditasi/') ||
       path === '/admin/alumni' ||
       path.startsWith('/admin/alumni/') ||
       path === '/admin/bank-soal' ||
@@ -220,6 +229,7 @@ router.beforeEach((to, from, next) => {
     const permissionMap = [
       { pattern: /^\/admin$/, key: 'ikhtisar' },
       { pattern: /^\/admin\/dashboard-tracer/, key: 'kuisioner' },
+      { pattern: /^\/admin\/tracer-akreditasi/, key: 'kuisioner' },
       { pattern: /^\/admin\/kuisioner/, key: 'kuisioner' },
       { pattern: /^\/admin\/bank-soal/, key: 'bankSoal' },
       { pattern: /^\/admin\/alumni/, key: 'alumni' },

@@ -1,0 +1,148 @@
+{
+    "metrics": {
+        "http_req_receiving": {
+            "p(90)": 2.9253,
+            "p(95)": 3.1978199999999988,
+            "p(99)": 4.086124999999991,
+            "max": 6.3956,
+            "avg": 2.324909583333333,
+            "med": 2.33155
+        },
+        "http_req_connecting": {
+            "avg": 2.785266250000001,
+            "med": 2.95765,
+            "p(90)": 4.265429999999999,
+            "p(95)": 4.613319999999998,
+            "p(99)": 6.088683999999988,
+            "max": 7.2285
+        },
+        "data_received": {
+            "count": 176338,
+            "rate": 2176.5896358488444
+        },
+        "http_req_blocked": {
+            "avg": 2.8155300000000016,
+            "med": 2.9927,
+            "p(90)": 4.35583,
+            "p(95)": 4.63118,
+            "p(99)": 6.088683999999988,
+            "max": 7.2285
+        },
+        "iteration_duration": {
+            "max": 30597.2723,
+            "avg": 8241.568839330539,
+            "med": 7966.0977,
+            "p(90)": 10876.449000000008,
+            "p(95)": 20218.149279999998,
+            "p(99)": 30415.214108
+        },
+        "iterations": {
+            "count": 239,
+            "rate": 2.950044363483048
+        },
+        "http_reqs": {
+            "count": 240,
+            "rate": 2.962387645338626
+        },
+        "http_req_waiting": {
+            "avg": 7853.410458333329,
+            "med": 7593.1284,
+            "p(90)": 10344.956519999994,
+            "p(95)": 19890.016194999986,
+            "p(99)": 29997.727135,
+            "max": 29999.0377
+        },
+        "vus": {
+            "value": 1,
+            "min": 0,
+            "max": 50
+        },
+        "http_req_duration{expected_response:true}": {
+            "max": 29510.2559,
+            "avg": 7384.6890995744725,
+            "med": 7531.1623,
+            "p(90)": 9459.86822,
+            "p(95)": 16143.339569999987,
+            "p(99)": 25272.329671999993
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "med": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0
+        },
+        "http_req_sending": {
+            "avg": 0.06359041666666666,
+            "med": 0,
+            "p(90)": 0.4949999999999999,
+            "p(95)": 0.549395,
+            "p(99)": 0.6850959999999993,
+            "max": 0.7697
+        },
+        "data_sent": {
+            "count": 53781,
+            "rate": 663.8340414748194
+        },
+        "http_req_duration": {
+            "p(99)": 29997.727135,
+            "max": 29999.0377,
+            "avg": 7855.7989583333365,
+            "med": 7595.76415,
+            "p(90)": 10347.636269999995,
+            "p(95)": 19892.442214999985,
+            "thresholds": {
+                "p(95)<2500": true,
+                "p(99)<5000": true
+            }
+        },
+        "http_req_failed": {
+            "passes": 5,
+            "fails": 235,
+            "thresholds": {
+                "rate<0.02": true
+            },
+            "value": 0.020833333333333332
+        },
+        "vus_max": {
+            "value": 50,
+            "min": 50,
+            "max": 50
+        },
+        "checks": {
+            "passes": 234,
+            "fails": 244,
+            "thresholds": {
+                "rate>0.98": true
+            },
+            "value": 0.4895397489539749
+        }
+    },
+    "setup_data": {
+        "questionnaireId": null,
+        "token": "169|U5MjNHfxNnjyUYf471WI5vW05YsUJXkdrsvRSRgcb6b8dce1"
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "summary status 200": {
+                    "name": "summary status 200",
+                    "path": "::summary status 200",
+                    "id": "14a7af35bdfe9048de5bd6f287362e64",
+                    "passes": 234,
+                    "fails": 5
+                },
+                "summary has payload": {
+                    "name": "summary has payload",
+                    "path": "::summary has payload",
+                    "id": "efd51d1a329c5378d25fc6cbd04a591c",
+                    "passes": 0,
+                    "fails": 239
+                }
+            }
+    }
+}

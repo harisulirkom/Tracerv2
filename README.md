@@ -53,10 +53,20 @@ VITE_DASHBOARD_TIMEOUT_MS=20000            # Timeout khusus dashboard/insight (m
 - Jika backend belum ada: biarkan `VITE_API_BASE_URL` kosong atau gunakan mock (json-server/Postman mock) dengan path sesuai kontrak REST; `VITE_DASHBOARD_DATA_URL` bisa diarahkan ke file JSON statis di `public/api/dashboard.json`.
 
 ### Menjalankan dengan backend mock
-1. Sediakan mock endpoint sesuai kontrak (`/auth/login`, `/tracer/questionnaires`, `/tracer/questionnaires/:id/questions`, `/jobs`, `/news`, dll) memakai json-server/Postman mock.
+1. Sediakan mock endpoint sesuai kontrak (`/auth/login`, `/tracer/questionnaires`, `/tracer/questionnaires/:id/questions`, `/dashboard/tracer/accreditation-summary`, `/jobs`, `/news`, dll) memakai json-server/Postman mock.
 2. Atur `VITE_API_BASE_URL` ke URL mock tersebut.
 3. Pastikan CORS mock mengizinkan origin Vite; jalankan `npm run dev`.
 
 ## Deployment production (frontend + backend)
 
 Lihat panduan: `docs/deploy/GO-LIVE-FULLSTACK.md`
+
+## Load Test (k6)
+
+Paket skenario lengkap ada di `stress/k6`:
+- smoke
+- baseline
+- stress
+- soak
+
+Panduan penggunaan: `stress/k6/README.md`

@@ -30,6 +30,9 @@ export const getResponses = (questionnaireId, query = {}, requestConfig = {}) =>
 export const getResponsesSummary = (questionnaireId, query = {}, requestConfig = {}) =>
   get(`/questionnaires/${questionnaireId}/responses/summary`, { params: query, ...requestConfig })
 
+export const getTracerAccreditationSummary = (query = {}, requestConfig = {}) =>
+  get('/dashboard/tracer/accreditation-summary', { params: query, ...requestConfig })
+
 export const requestResponsesExport = (payload = {}) =>
   post('/exports/responses', payload)
 
@@ -90,6 +93,7 @@ export default {
   deleteQuestion,
   getResponses,
   getResponsesSummary,
+  getTracerAccreditationSummary,
   requestResponsesExport,
   getExportStatus,
   downloadExport,

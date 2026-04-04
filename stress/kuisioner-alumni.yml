@@ -1,0 +1,37 @@
+config:
+  target: "http://localhost:9000"
+  phases:
+    - duration: 20
+      arrivalRate: 200
+      rampTo: 400
+    - duration: 20
+      arrivalRate: 400
+      rampTo: 600
+    - duration: 20
+      arrivalRate: 600
+      rampTo: 800
+    - duration: 20
+      arrivalRate: 800
+      rampTo: 1000
+    - duration: 20
+      arrivalRate: 1000
+  maxVusers: 5000
+  processor: "./kuisioner-alumni.cjs"
+  defaults:
+    headers:
+      Accept: "application/json"
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Isi kuisioner alumni"
+    flow:
+      - get:
+          url: "/api/questionnaires/active?audience=alumni"
+          capture:
+            - json: "$.data.id"
+              as: "questionnaireId"
+            - json: "$.data.questions[*].id"
+              as: "questionIds"
+      - post:
+          url: "/api/responses/submit"
+          beforeRequest: "buildPayload"

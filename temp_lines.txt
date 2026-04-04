@@ -1,0 +1,30 @@
+﻿
+      <div v-if="filters.status !== 'all' && availableFilterQuestions.length" class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-xs transition-all">
+         <span class="font-semibold text-indigo-700">Filter Lanjutan:</span>
+         <select v-model="filters.questionId" class="max-w-[250px] rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <option value="">-- Pilih Pertanyaan --</option>
+            <option v-for="q in availableFilterQuestions" :key="q.key" :value="q.key">
+              {{ q.label && q.label.length > 50 ? q.label.substring(0, 50) + '...' : q.label }}
+            </option>
+         </select>
+
+         <select 
+            v-if="filters.questionId"
+            v-model="filters.answerValue" 
+            class="max-w-[200px] rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+         >
+            <option value="">-- Pilih Jawaban --</option>
+            <option v-for="opt in availableFilterOptions" :key="opt" :value="opt">
+              {{ opt }}
+            </option>
+         </select>
+         <button 
+           v-if="filters.questionId" 
+           @click="filters.questionId = ''; filters.answerValue = ''"
+           class="ml-auto rounded-full p-1 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600"
+           title="Hapus filter lanjutan"
+         >
+           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+         </button>
+      </div>
+

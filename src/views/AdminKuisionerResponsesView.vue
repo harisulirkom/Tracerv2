@@ -10,6 +10,12 @@ import tracerService from '../services/tracerService'
 import { jsPDF } from 'jspdf'
 import * as XLSX from 'xlsx'
 import { letterHeadContent } from '../constants/letterHeadContent'
+import {
+  ALUMNI_TEMPLATE_HEADERS,
+  ALUMNI_TEMPLATE_SAMPLE_ROW,
+  buildAlumniTemplateAoA,
+  buildAlumniTemplateDataRow,
+} from '../utils/alumniExportTemplate'
 
 const route = useRoute()
 const router = useRouter()
@@ -1084,38 +1090,12 @@ const downloadTemplate = async () => {
   uploadMessage.value = ''
   uploadError.value = ''
   const XLSX = await import('xlsx')
-  
-  // Fixed headers matching 'template-jawaban-alumni.xlsx'
-  const fixedHeaders = [
-    'nama', 'nik', 'nim', 'fakultas', 'prodi', 'tahun', 'email', 'status', 'ekstra',
-    'bekerja_mulaiSebelum', 'bekerja_mulaiSetelah', 'bekerja_lebihCepat6Bulan', 'bekerja_bulanDapat', 'bekerja_bulanTidak',
-    'bekerja_pendapatan', 'bekerja_tingkatTempatKerja', 'bekerja_lokasiDetail', 'bekerja_provinsi', 'bekerja_kabupaten',
-    'bekerja_jenisPerusahaan', 'bekerja_namaPerusahaan', 'bekerja_namaPimpinan', 'bekerja_telpPerusahaan', 'bekerja_caraMencari',
-    'bekerja_perusahaanLamar', 'bekerja_perusahaanRespon', 'bekerja_perusahaanWawancara', 'bekerja_posisi', 'bekerja_kesesuaianBidang', 'bekerja_pendidikanSesuai',
-    'wira_namaPerusahaan', 'wira_telpPerusahaan', 'wira_jenisPerusahaan', 'wira_bidang', 'wira_tingkat', 'wira_kesesuaian', 'wira_pendidikan',
-    'studi_lokasi', 'studi_sumberBiaya', 'studi_namaPt', 'studi_prodi', 'studi_tanggalMasuk', 'studi_alasan',
-    'mencari_mulaiSebelum', 'mencari_mulaiSetelah', 'mencari_cara', 'mencari_perusahaanLamar', 'mencari_perusahaanRespon', 'mencari_perusahaanWawancara', 'mencari_aktif4Minggu',
-    'kompetensi_individu', 'kompetensi_pembelajaran', 'sumberDana'
-  ]
-
-  // Sample row matching the headers
-  const sampleRow = [
-    'Mawar Melati', '1234567890123456', '12345678', 'Sains dan Teknologi', 'Teknik Informatika', '2023', 'mawar@example.com', 'bekerja', 'Masukan untuk kampus...',
-    '0', '1', 'Ya', '1', '0', '5000000', 'Nasional', 'Jakarta Selatan', 'DKI Jakarta', 'Jakarta Selatan',
-    'Swasta', 'PT Teknologi Maju', 'Budi Santoso', '021-1234567', 'Jobstreet; LinkedIn', '5', '3', '2', 'Software Engineer', 'Sangat Sesuai', 'Setingkat Lebih Tinggi',
-    '', '', '', '', '', '', '', // wira defaults
-    '', '', '', '', '', '', '', // studi defaults
-    '', '', '', '', '', '', '', // mencari defaults
-    'Etika:4;Keahlian:5;Bhs Inggris:4;Teknologi Informasi:5;Komunikasi:4;Kerja Sama:5;Pengembangan Diri:5',
-    'Perkuliahan:5;Pembimbingan:4;Metode Pengajaran:5;Sarana:4;Integritas:5;Keluasan Ilmu:4;Kesempatan Riset:5',
-    'Mandiri'
-  ]
 
   const useDynamicHeaders = isPenggunaAudience.value && templateHeaders.value.length > 0
   const headerRow = useDynamicHeaders
     ? templateHeaders.value.map((header) => String(header ?? '').trim())
-    : fixedHeaders
-  const sampleRowValues = useDynamicHeaders ? templateSampleRow.value : sampleRow
+    : ALUMNI_TEMPLATE_HEADERS
+  const sampleRowValues = useDynamicHeaders ? templateSampleRow.value : ALUMNI_TEMPLATE_SAMPLE_ROW
   const rows = [headerRow, sampleRowValues]
   
   const ws = XLSX.utils.aoa_to_sheet(rows)
@@ -1161,15 +1141,27 @@ const applyViewMode = (records = []) => {
   return Array.from(grouped.values())
 }
 
-const filteredRecords = computed(() =>
-  allRecords.value.filter((item) => {
+const isQuestionAnswerFilterActive = computed(
+  () => Boolean(filters.questionId && String(filters.answerValue || '').trim() !== ''),
+)
+const isRecordFilterActive = computed(
+  () =>
+    filters.tahun !== 'all' ||
+    filters.fakultas !== 'all' ||
+    filters.prodi !== 'all' ||
+    !filters.status.includes('all') ||
+    isQuestionAnswerFilterActive.value,
+)
+
+const filterRecords = (records = []) =>
+  records.filter((item) => {
     const matchStatus = filters.status.includes('all') || filters.status.includes(item.status)
     const matchProdi = filters.prodi === 'all' || item.prodi === filters.prodi
     const matchFak = filters.fakultas === 'all' || item.fakultas === filters.fakultas
     const matchTahun = filters.tahun === 'all' || String(item.tahun) === filters.tahun
 
     // Filter by Dynamic Question
-    if (filters.questionId && filters.answerValue) {
+    if (isQuestionAnswerFilterActive.value) {
       const rawVal = getRawValue(item.raw || item, filters.questionId)
       const target = String(filters.answerValue).trim().toLowerCase()
       let match = false
@@ -1182,8 +1174,9 @@ const filteredRecords = computed(() =>
     }
 
     return matchStatus && matchProdi && matchFak && matchTahun
-  }),
-)
+  })
+
+const filteredRecords = computed(() => filterRecords(allRecords.value))
 
 const parseIndividualSearch = (value) =>
   String(value || '')
@@ -1843,49 +1836,73 @@ const uniqueFilters = computed(() => ({
     prodi: Array.from(new Set(allRecords.value.map((d) => d.prodi).filter(Boolean))).sort(),
 }))
 
-const exportFilteredData = (format = 'xlsx') => {
-  const records = filteredRecords.value
+const prodiFilterOptions = computed(() => {
+  const selectedFaculty = String(filters.fakultas || 'all').trim().toLowerCase()
+  if (selectedFaculty === 'all') return uniqueFilters.value.prodi
+  return Array.from(
+    new Set(
+      allRecords.value
+        .filter((item) => String(item.fakultas || '').trim().toLowerCase() === selectedFaculty)
+        .map((item) => String(item.prodi || '').trim())
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'id', { sensitivity: 'base' }))
+})
+
+watch(
+  () => filters.fakultas,
+  () => {
+    if (filters.prodi === 'all') return
+    if (!prodiFilterOptions.value.includes(filters.prodi)) {
+      filters.prodi = 'all'
+    }
+  },
+  { immediate: true },
+)
+
+const exportAllData = (format = 'xlsx') => {
+  const records = isRecordFilterActive.value ? filteredRecords.value : allRecords.value
   if (!records.length) {
-    window.alert('Tidak ada data untuk diekspor dengan filter saat ini.')
+    const message = isRecordFilterActive.value
+      ? 'Tidak ada data jawaban yang sesuai filter untuk diekspor.'
+      : 'Tidak ada data jawaban untuk diekspor.'
+    window.alert(message)
     return
   }
 
-  const questions = questionBank.value
-  
-  // Header: Standard Fields + Question Labels
-  const standardHeaders = ['Nama', 'NIM', 'Fakultas', 'Prodi', 'Tahun Lulus', 'Status', 'Timestamp']
-  const questionHeaders = questions.map(q => q.label)
-  const header = [...standardHeaders, ...questionHeaders]
-
-  const rows = records.map(resp => {
-    const raw = resp.raw || {}
-    
-    // Standard Values
-    const row = [
-      resp.nama,
-      resp.nim,
-      resp.fakultas,
-      resp.prodi,
-      resp.tahun,
-      resp.status,
-      resp.timestamp ? new Date(resp.timestamp).toLocaleString('id-ID') : '-'
-    ]
-
-    // Question Values
-    questions.forEach(q => {
-      const val = getRawValue(raw, q.key)
-      row.push(q.formatter ? q.formatter(val) : formatAnswerValue(val))
+  let aoa = []
+  if (questionnaire.value?.audience === 'alumni') {
+    aoa = buildAlumniTemplateAoA(records, getRawValue)
+  } else {
+    const questions = questionBank.value
+    const standardHeaders = ['Nama', 'NIM', 'Fakultas', 'Prodi', 'Tahun Lulus', 'Status', 'Timestamp']
+    const questionHeaders = questions.map((q) => q.label)
+    const header = [...standardHeaders, ...questionHeaders]
+    const rows = records.map((resp) => {
+      const raw = resp.raw || {}
+      const row = [
+        resp.nama,
+        resp.nim,
+        resp.fakultas,
+        resp.prodi,
+        resp.tahun,
+        resp.status,
+        resp.timestamp ? new Date(resp.timestamp).toLocaleString('id-ID') : '-',
+      ]
+      questions.forEach((q) => {
+        const val = getRawValue(raw, q.key)
+        row.push(q.formatter ? q.formatter(val) : formatAnswerValue(val))
+      })
+      return row
     })
+    aoa = [header, ...rows]
+  }
 
-    return row
-  })
-
-  const aoa = [header, ...rows]
   const ws = XLSX.utils.aoa_to_sheet(aoa)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Responses_Filtered')
+  XLSX.utils.book_append_sheet(wb, ws, 'Jawaban')
 
-  const fileName = `responses_terfilter_${questionnaireId.value}_${new Date().getTime()}.${format}`
+  const fileName = `jawaban_${questionnaireId.value}_${new Date().getTime()}.${format}`
   if (format === 'csv') {
     XLSX.writeFile(wb, fileName, { bookType: 'csv' })
   } else {
@@ -1894,7 +1911,82 @@ const exportFilteredData = (format = 'xlsx') => {
 }
 
 const exportAllPdf = () => {
-  window.alert('Export PDF belum diimplementasikan di prototipe ini.')
+  const records = isRecordFilterActive.value ? filteredRecords.value : allRecords.value
+  if (!records.length) {
+    const message = isRecordFilterActive.value
+      ? 'Tidak ada data jawaban yang sesuai filter untuk diekspor.'
+      : 'Tidak ada data jawaban untuk diekspor.'
+    window.alert(message)
+    return
+  }
+
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  const margin = 36
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const contentWidth = doc.internal.pageSize.getWidth() - margin * 2
+  let y = margin
+
+  const ensureSpace = (neededHeight = 20) => {
+    if (y + neededHeight <= pageHeight - margin) return
+    doc.addPage()
+    y = margin
+  }
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.text('Export Jawaban Alumni', margin, y)
+  y += 16
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.text(`Kuisioner: ${questionnaire.value?.title || '-'}`, margin, y)
+  y += 12
+  doc.text(`Total responden: ${records.length}`, margin, y)
+  y += 18
+
+  const useTemplateLayout = questionnaire.value?.audience === 'alumni'
+  records.forEach((record, index) => {
+    const rowValues = useTemplateLayout
+      ? buildAlumniTemplateDataRow(record, getRawValue)
+      : []
+    const identityText = useTemplateLayout
+      ? `${index + 1}. ${rowValues[0] || '-'} (NIM: ${rowValues[2] || '-'})`
+      : `${index + 1}. ${record.nama || '-'}`
+    ensureSpace(18)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.text(identityText, margin, y)
+    y += 12
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+
+    if (useTemplateLayout) {
+      ALUMNI_TEMPLATE_HEADERS.forEach((key, keyIndex) => {
+        const rawText = rowValues[keyIndex] || '-'
+        const lines = doc.splitTextToSize(`${key}: ${rawText}`, contentWidth)
+        ensureSpace(Math.max(12, lines.length * 10 + 2))
+        lines.forEach((line) => {
+          doc.text(line, margin + 8, y)
+          y += 10
+        })
+      })
+    } else {
+      const lines = doc.splitTextToSize(JSON.stringify(record.raw || record, null, 2), contentWidth)
+      ensureSpace(Math.max(12, lines.length * 10 + 2))
+      lines.forEach((line) => {
+        doc.text(line, margin + 8, y)
+        y += 10
+      })
+    }
+
+    y += 6
+    ensureSpace(12)
+    doc.setDrawColor(200, 200, 200)
+    doc.setLineWidth(0.3)
+    doc.line(margin, y, margin + contentWidth, y)
+    y += 12
+  })
+
+  doc.save(`jawaban_${questionnaireId.value}_${Date.now()}.pdf`)
 }
 
 const loadLogoDataUrl = async () => {
@@ -2274,16 +2366,16 @@ onUnmounted(() => {
           <button
             type="button"
             class="rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100"
-            @click="exportFilteredData('csv')"
+            @click="exportAllData('csv')"
           >
-            Export CSV (Terfilter)
+            Export CSV
           </button>
           <button
             type="button"
             class="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
-            @click="exportFilteredData('xlsx')"
+            @click="exportAllData('xlsx')"
           >
-            Export Excel (Terfilter)
+            Export Excel
           </button>
           <button
             type="button"
@@ -2379,7 +2471,7 @@ onUnmounted(() => {
           </select>
           <select v-model="filters.prodi" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition shadow-sm">
             <option value="all">Semua prodi</option>
-            <option v-for="p in uniqueFilters.prodi" :key="p" :value="p">{{ p }}</option>
+            <option v-for="p in prodiFilterOptions" :key="p" :value="p">{{ p }}</option>
           </select>
         </template>
         <!-- Status Multi-select -->

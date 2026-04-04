@@ -5,8 +5,15 @@ import AdminShell from '../components/AdminShell.vue'
 import LoadingOverlay from '../components/LoadingOverlay.vue'
 import { useQuestionnaires } from '../stores/questionnaires'
 import { useSubmissions } from '../stores/submissions'
-import { getResponsesSummary, requestResponsesExport, getExportStatus, downloadExport } from '../services/tracerService'
+import { jsPDF } from 'jspdf'
+import * as XLSX from 'xlsx'
+import { getResponsesSummary } from '../services/tracerService'
 import { useAlumni } from '../stores/alumni'
+import {
+  ALUMNI_TEMPLATE_HEADERS,
+  buildAlumniTemplateAoA,
+  buildAlumniTemplateDataRow,
+} from '../utils/alumniExportTemplate'
 
 const route = useRoute()
 const router = useRouter()
@@ -488,33 +495,33 @@ const responseItems = computed(() =>
   hasServerPagination.value ? pagedItems.value || [] : submissions.items || [],
 )
 
-const submissionsByAudience = computed(() => {
+const filterAudienceItems = (items = []) => {
   const targetType = targetAudience.value === 'pengguna' ? 'pengguna' : targetAudience.value
-  if (!Array.isArray(responseItems.value)) return []
-  
+  if (!Array.isArray(items)) return []
+
   const allowedTypes =
     targetType === 'pengguna' ? new Set(['pengguna', 'pengguna_alumni']) : new Set([targetType])
-  const filtered = responseItems.value.filter((item) => {
+  const filtered = items.filter((item) => {
     const type = String(item.type || item.audience || '').toLowerCase()
     return allowedTypes.has(type)
   })
-  
-  // Clean duplicates by ID
+
   const seen = new Set()
-  return filtered.filter(item => {
+  return filtered.filter((item) => {
     if (!item.id) return true
     if (seen.has(item.id)) return false
     seen.add(item.id)
     return true
   })
-})
+}
 
-const allRecords = computed(() => {
+const mapRecordsByAudience = (items = []) => {
+  const submissionsByAudience = filterAudienceItems(items)
   if (targetAudience.value === 'pengguna') {
-    return submissionsByAudience.value.map(mapPenggunaRecord)
+    return submissionsByAudience.map(mapPenggunaRecord)
   }
   if (targetAudience.value === 'umum') {
-    return submissionsByAudience.value.map((s) => ({
+    return submissionsByAudience.map((s) => ({
       id: s.id,
       nama: s.nama || 'Responden',
       prodi: s.prodi || '-',
@@ -531,36 +538,45 @@ const allRecords = computed(() => {
       raw: s.raw || s,
     }))
   }
-  return submissionsByAudience.value.map(mapAlumniRecord)
-})
+  return submissionsByAudience.map(mapAlumniRecord)
+}
 
-const filteredRecords = computed(() =>
-  allRecords.value.filter((item) => {
+const allRecords = computed(() => mapRecordsByAudience(responseItems.value))
+
+const isQuestionAnswerFilterActive = computed(
+  () => Boolean(filters.questionId && String(filters.answerValue || '').trim() !== ''),
+)
+const isRecordFilterActive = computed(
+  () =>
+    filters.tahun !== 'all' ||
+    filters.fakultas !== 'all' ||
+    filters.prodi !== 'all' ||
+    !filters.status.includes('all') ||
+    isQuestionAnswerFilterActive.value,
+)
+
+const filterRecords = (records = []) =>
+  records.filter((item) => {
     // For Pengguna, ignore traditional Alumni filters if they are 'all'
     if (targetAudience.value === 'pengguna') {
-        const matchStatus = true // No status for pengguna
-        const matchProdi = true // No prodi filtering for now, or match bidang if needed
-        const matchFak = true 
-        const matchTahun = true
-        
-        let matchQs = true
-        if (filters.questionId && filters.answerValue) {
-          const rawVal = getRawValue(item.raw || item, filters.questionId)
-          const target = String(filters.answerValue).trim().toLowerCase()
-          if (Array.isArray(rawVal)) {
-            matchQs = rawVal.some((val) => String(val).trim().toLowerCase() === target)
-          } else {
-            matchQs = String(rawVal || '').trim().toLowerCase() === target
-          }
+      let matchQs = true
+      if (isQuestionAnswerFilterActive.value) {
+        const rawVal = getRawValue(item.raw || item, filters.questionId)
+        const target = String(filters.answerValue).trim().toLowerCase()
+        if (Array.isArray(rawVal)) {
+          matchQs = rawVal.some((val) => String(val).trim().toLowerCase() === target)
+        } else {
+          matchQs = String(rawVal || '').trim().toLowerCase() === target
         }
-        return matchQs
+      }
+      return matchQs
     }
-  
+
     const matchStatus = filters.status.includes('all') || filters.status.includes(item.status)
     const matchProdi = filters.prodi === 'all' || item.prodi === filters.prodi
     const matchFak = filters.fakultas === 'all' || item.fakultas === filters.fakultas
     const matchTahun = filters.tahun === 'all' || String(item.tahun) === filters.tahun
-    if (filters.questionId && filters.answerValue) {
+    if (isQuestionAnswerFilterActive.value) {
       const rawVal = getRawValue(item.raw || item, filters.questionId)
       const target = String(filters.answerValue).trim().toLowerCase()
       let match = false
@@ -572,19 +588,42 @@ const filteredRecords = computed(() =>
       if (!match) return false
     }
     return matchStatus && matchProdi && matchFak && matchTahun
-  }),
-)
+  })
+
+const filteredRecords = computed(() => filterRecords(allRecords.value))
 
 const summaryPayload = ref(null)
 const summaryLoading = ref(false)
 const summaryError = ref('')
 const exportMessage = ref('')
-const hasServerSummary = computed(() => !!summaryPayload.value)
-const hasServerPagination = computed(() => pagedMeta.value?.total !== undefined && pageSize.value !== 'all')
+const isLocalOnlyQuestionFilter = computed(
+  () => isQuestionAnswerFilterActive.value && !normalizeQuestionId(filters.questionId),
+)
+const useClientDataMode = computed(
+  () => pageSize.value === 'all' || isLocalOnlyQuestionFilter.value,
+)
+const hasServerSummary = computed(() => !!summaryPayload.value && !useClientDataMode.value)
+const hasServerPagination = computed(
+  () => !useClientDataMode.value && pagedMeta.value?.total !== undefined && pageSize.value !== 'all',
+)
 
 const summary = computed(() => {
   if (hasServerSummary.value) {
-    return summaryPayload.value
+    const payload = summaryPayload.value || {}
+    const payloadTotal = Number(
+      payload.total ??
+        payload.total_respon ??
+        payload.total_response ??
+        payload.totalResponses ??
+        0,
+    )
+    const syncedTotal = hasServerPagination.value
+      ? Number(pagedMeta.value?.total || payloadTotal || 0)
+      : payloadTotal
+    return {
+      ...payload,
+      total: Number.isFinite(syncedTotal) ? syncedTotal : 0,
+    }
   }
   const data = filteredRecords.value
   const total = data.length
@@ -1101,178 +1140,185 @@ const resetFilters = () => {
   filters.answerValue = ''
 }
 
-const EXPORT_POLL_DELAY = 1200
-const EXPORT_MAX_ATTEMPTS = 12
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-const extractExportInfo = (payload) => {
-  const data = payload?.data || payload || {}
-  return {
-    exportId: data.export_id || data.exportId || data.id || data.export?.id || '',
-    downloadUrl:
-      data.download_url ||
-      data.file_url ||
-      data.url ||
-      data.downloadUrl ||
-      data.fileUrl ||
-      data.link ||
-      '',
-    filename: data.filename || data.file_name || data.name || data.export_name || '',
+const formatExportCellValue = (value) => {
+  if (value === undefined || value === null) return ''
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item ?? '').trim())
+      .filter(Boolean)
+      .join(';')
   }
-}
-const parseExportStatus = (payload) => {
-  const data = payload?.data || payload || {}
-  const status = String(
-    data.status || data.state || data.export_status || data.exportStatus || data.result || '',
-  ).toLowerCase()
-  const downloadUrl =
-    data.download_url ||
-    data.file_url ||
-    data.url ||
-    data.downloadUrl ||
-    data.fileUrl ||
-    data.link ||
-    ''
-  const filename = data.filename || data.file_name || data.name || data.export_name || ''
-  const progress = Number(data.progress || data.percentage || data.percent || 0)
-  const ready =
-    Boolean(downloadUrl) ||
-    ['completed', 'finished', 'ready', 'done', 'success'].includes(status) ||
-    data.ready === true ||
-    data.completed === true ||
-    data.is_ready === true ||
-    progress >= 100
-  const failed =
-    ['failed', 'error', 'canceled', 'cancelled'].includes(status) ||
-    data.failed === true ||
-    data.error === true
-  return { status, ready, failed, downloadUrl, filename }
-}
-const triggerCsvDownload = (blobOrText, filename) => {
-  const blob =
-    blobOrText instanceof Blob
-      ? blobOrText
-      : new Blob([blobOrText ?? ''], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename || `tracer_detail_${Date.now()}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
-}
-const downloadExportFile = async (exportId, options = {}) => {
-  const { filename, downloadUrl } = options
-  if (!exportId && downloadUrl) {
-    window.open(downloadUrl, '_blank', 'noopener')
-    return true
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .map(([key, val]) => `${String(key).trim()}:${String(val ?? '').trim()}`)
+      .join(';')
   }
+  return String(value).trim()
+}
+
+const buildGenericExportAoA = (records = []) => {
+  const questionColumns = scopedQuestionFields.value
+  const header = ['nama', 'nim', 'fakultas', 'prodi', 'tahun', 'status', ...questionColumns.map((q) => q.key)]
+  const rows = records.map((record) => {
+    const raw = record.raw || record
+    const row = [
+      formatExportCellValue(record.nama),
+      formatExportCellValue(record.nim),
+      formatExportCellValue(record.fakultas),
+      formatExportCellValue(record.prodi),
+      formatExportCellValue(record.tahun),
+      formatExportCellValue(record.status),
+    ]
+    questionColumns.forEach((question) => {
+      row.push(formatExportCellValue(getRawValue(raw, question.key)))
+    })
+    return row
+  })
+  return [header, ...rows]
+}
+
+const loadAllRecordsForExport = async () => {
+  if (!questionnaire.value?.id) return []
+  const { audience, type } = buildAudienceParams()
+  await fetchSubmissions({
+    questionnaireId: questionnaire.value.id,
+    limit: MAX_RESPONSE_LIMIT,
+    per_page: MAX_RESPONSE_LIMIT,
+    all: 1,
+    include_answers: 1,
+    audience,
+    type,
+  })
+  const mappedRecords = mapRecordsByAudience(submissions.items || [])
+  return isRecordFilterActive.value ? filterRecords(mappedRecords) : mappedRecords
+}
+
+const exportByFormat = async (format = 'csv') => {
+  exportMessage.value = isRecordFilterActive.value
+    ? 'Menyiapkan data export sesuai filter...'
+    : 'Menyiapkan data export semua jawaban...'
   try {
-    const blob = await downloadExport(exportId, { responseType: 'blob' })
-    triggerCsvDownload(blob, filename)
-    return true
+    const records = await loadAllRecordsForExport()
+    if (!records.length) {
+      exportMessage.value = isRecordFilterActive.value
+        ? 'Tidak ada data jawaban yang sesuai filter untuk diekspor.'
+        : 'Tidak ada data jawaban untuk diekspor.'
+      return
+    }
+
+    const aoa =
+      questionnaire.value?.audience === 'alumni'
+        ? buildAlumniTemplateAoA(records, getRawValue)
+        : buildGenericExportAoA(records)
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Jawaban')
+
+    const filename = `jawaban_${questionnaireId.value}_${Date.now()}.${format}`
+    if (format === 'csv') {
+      XLSX.writeFile(wb, filename, { bookType: 'csv' })
+    } else {
+      XLSX.writeFile(wb, filename)
+    }
+    exportMessage.value = 'Export selesai diunduh.'
   } catch (err) {
-    if (downloadUrl) {
-      window.open(downloadUrl, '_blank', 'noopener')
-      return true
-    }
-    throw err
+    exportMessage.value = err?.message || 'Gagal membuat export.'
   }
 }
-const waitForExportReady = async (exportId) => {
-  for (let attempt = 0; attempt < EXPORT_MAX_ATTEMPTS; attempt += 1) {
-    const statusResp = await getExportStatus(exportId)
-    const parsed = parseExportStatus(statusResp)
-    if (parsed.failed) {
-      throw new Error('Export gagal di server.')
-    }
-    if (parsed.ready) return parsed
-    await sleep(EXPORT_POLL_DELAY)
-  }
-  return null
-}
+
 const exportCsv = async () => {
-  if (hasServerPagination.value && questionnaire.value?.id) {
-    const statusValue = filters.status.includes('all') ? [] : [...filters.status]
-    const payload = {
-      questionnaire_id: questionnaire.value.id,
-      format: 'csv',
-      filters: {
-        search: '',
-        fakultas: filters.fakultas !== 'all' ? filters.fakultas : '',
-        prodi: filters.prodi !== 'all' ? filters.prodi : '',
-        tahun: filters.tahun !== 'all' ? filters.tahun : '',
-        status: statusValue,
-        question_id: filters.questionId || '',
-        answer_value: filters.answerValue || '',
-      },
-    }
-    exportMessage.value = 'Menyiapkan export di server...'
-    try {
-      const resp = await requestResponsesExport(payload)
-      const { exportId, downloadUrl, filename } = extractExportInfo(resp)
-      if (downloadUrl) {
-        exportMessage.value = 'Export siap. Mengunduh file...'
-        await downloadExportFile(exportId, { filename, downloadUrl })
-        exportMessage.value = 'Export selesai diunduh.'
-        return
-      }
-      if (!exportId) {
-        exportMessage.value = 'Gagal membuat export di server.'
-        return
-      }
-      exportMessage.value = `Export diproses (ID: ${exportId}). Menunggu file...`
-      const status = await waitForExportReady(exportId)
-      if (!status) {
-        exportMessage.value = `Export diproses (ID: ${exportId}). Cek status export di server.`
-        return
-      }
-      exportMessage.value = 'Export siap. Mengunduh file...'
-      await downloadExportFile(exportId, {
-        filename: status.filename || filename,
-        downloadUrl: status.downloadUrl || downloadUrl,
-      })
-      exportMessage.value = 'Export selesai diunduh.'
-    } catch (err) {
-      exportMessage.value = err?.message || 'Gagal membuat export di server. Coba lagi.'
-    }
-    return
-  }
-  
-  // Client-side Export
-  const rows = tableRows.value
-  let header = []
-  let rowMapper = null
+  await exportByFormat('csv')
+}
 
-  if (targetAudience.value === 'pengguna') {
-      header = ['Nama Perusahaan', 'Bidang', 'Lokasi', 'Kontak', 'Jabatan PIC', 'Target Alumni']
-      rowMapper = (r) => [r.nama, r.prodi, r.fakultas, r.kontak, r.jabatan, r.namaAlumni]
-  } else if (targetAudience.value === 'umum') {
-      const columns = umumTableQuestions.value
-      header = columns.map((q) => q.label || formatFriendlyLabel(q.key))
-      rowMapper = (r) => columns.map((q) => formatQuestionAnswerCell(r, q.key))
-  } else {
-      header = ['Nama', 'Fakultas', 'Prodi', 'Tahun Masuk', 'Tahun Lulus', 'Status', 'Sumber dana kuliah', 'Masa tunggu (bln)']
-      rowMapper = (r) => [r.nama, r.fakultas, r.prodi, r.tahunMasuk, r.tahunLulus, r.status, r.sumberDana, r.masaTunggu]
-  }
-  if (!header.length || !rowMapper) {
-    header = ['Data']
-    rowMapper = () => ['-']
-  }
+const exportExcel = async () => {
+  await exportByFormat('xlsx')
+}
 
-  const csv = [
-    header.join(','),
-    ...rows.map((r) =>
-      rowMapper(r)
-        .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
-        .join(','),
-    ),
-  ].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `tracer_detail_${Date.now()}.csv`
-  link.click()
-  URL.revokeObjectURL(url)
+const exportPdf = async () => {
+  exportMessage.value = isRecordFilterActive.value
+    ? 'Menyiapkan PDF export sesuai filter...'
+    : 'Menyiapkan PDF semua jawaban...'
+  try {
+    const records = await loadAllRecordsForExport()
+    if (!records.length) {
+      exportMessage.value = isRecordFilterActive.value
+        ? 'Tidak ada data jawaban yang sesuai filter untuk diekspor.'
+        : 'Tidak ada data jawaban untuk diekspor.'
+      return
+    }
+
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+    const margin = 36
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const contentWidth = doc.internal.pageSize.getWidth() - margin * 2
+    let y = margin
+    const useTemplateLayout = questionnaire.value?.audience === 'alumni'
+
+    const ensureSpace = (neededHeight = 20) => {
+      if (y + neededHeight <= pageHeight - margin) return
+      doc.addPage()
+      y = margin
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text('Export Jawaban Alumni', margin, y)
+    y += 16
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(`Kuisioner: ${questionnaire.value?.title || '-'}`, margin, y)
+    y += 12
+    doc.text(`Total responden: ${records.length}`, margin, y)
+    y += 18
+
+    records.forEach((record, index) => {
+      const rowValues = useTemplateLayout ? buildAlumniTemplateDataRow(record, getRawValue) : []
+      const identityText = useTemplateLayout
+        ? `${index + 1}. ${rowValues[0] || '-'} (NIM: ${rowValues[2] || '-'})`
+        : `${index + 1}. ${record.nama || '-'}`
+      ensureSpace(18)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9.5)
+      doc.text(identityText, margin, y)
+      y += 12
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+
+      if (useTemplateLayout) {
+        ALUMNI_TEMPLATE_HEADERS.forEach((key, keyIndex) => {
+          const rawText = rowValues[keyIndex] || '-'
+          const lines = doc.splitTextToSize(`${key}: ${rawText}`, contentWidth)
+          ensureSpace(Math.max(12, lines.length * 10 + 2))
+          lines.forEach((line) => {
+            doc.text(line, margin + 8, y)
+            y += 10
+          })
+        })
+      } else {
+        const lines = doc.splitTextToSize(
+          JSON.stringify(record.raw || record, null, 2),
+          contentWidth,
+        )
+        ensureSpace(Math.max(12, lines.length * 10 + 2))
+        lines.forEach((line) => {
+          doc.text(line, margin + 8, y)
+          y += 10
+        })
+      }
+
+      y += 6
+      ensureSpace(12)
+      doc.setDrawColor(200, 200, 200)
+      doc.setLineWidth(0.3)
+      doc.line(margin, y, margin + contentWidth, y)
+      y += 12
+    })
+
+    doc.save(`jawaban_${questionnaireId.value}_${Date.now()}.pdf`)
+    exportMessage.value = 'Export selesai diunduh.'
+  } catch (err) {
+    exportMessage.value = err?.message || 'Gagal membuat PDF export.'
+  }
 }
 
 const goBack = () => {
@@ -1321,6 +1367,11 @@ const buildFilterParams = () => {
 
 const fetchSummary = async () => {
   if (!questionnaire.value?.id) return
+  if (useClientDataMode.value) {
+    summaryPayload.value = null
+    summaryError.value = ''
+    return
+  }
   if (filters.questionId && !normalizeQuestionId(filters.questionId) && filters.answerValue) {
     summaryPayload.value = null
     summaryError.value = ''
@@ -1342,8 +1393,8 @@ const fetchSummary = async () => {
 
 const fetchPagedResponses = async () => {
   if (!questionnaire.value?.id) return
-  const includeAnswers = targetAudience.value === 'pengguna' ? 1 : 0
-  if (pageSize.value === 'all') {
+  const includeAnswers = targetAudience.value === 'pengguna' || isLocalOnlyQuestionFilter.value ? 1 : 0
+  if (useClientDataMode.value) {
     await fetchSubmissions({
       questionnaireId: questionnaire.value.id,
       limit: MAX_RESPONSE_LIMIT,
@@ -1431,6 +1482,7 @@ watch(
 )
 
 watch([page, pageSize], () => {
+  if (useClientDataMode.value) return
   fetchPagedResponses()
 })
 
@@ -1449,6 +1501,15 @@ watch(() => filters.fakultas, () => {
     filters.prodi = 'all'
   }
 })
+
+watch(
+  () => useClientDataMode.value,
+  () => {
+    page.value = 1
+    fetchPagedResponses()
+    fetchSummary()
+  },
+)
 </script>
 
 <template>
@@ -1549,6 +1610,20 @@ watch(() => filters.fakultas, () => {
                 @click="exportCsv"
               >
                 Export CSV
+              </button>
+              <button
+                type="button"
+                class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                @click="exportExcel"
+              >
+                Export Excel
+              </button>
+              <button
+                type="button"
+                class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                @click="exportPdf"
+              >
+                Export PDF
               </button>
             </div>
             <p v-if="exportMessage" class="text-[11px] font-semibold text-slate-500">

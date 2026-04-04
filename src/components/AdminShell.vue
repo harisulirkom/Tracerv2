@@ -14,6 +14,7 @@ const showLogoutDialog = ref(false)
 const adminNav = [
   { label: 'Ikhtisar', route: '/admin', icon: 'overview', permissionKey: 'ikhtisar' },
   { label: 'Kuisioner', route: '/admin/kuisioner', icon: 'kuisioner', permissionKey: 'kuisioner' },
+  { label: 'Akreditasi tracer', route: '/admin/tracer-akreditasi', icon: 'akreditasi', permissionKey: 'kuisioner' },
   { label: 'Daftar alumni', route: '/admin/alumni', icon: 'alumni', permissionKey: 'alumni' },
   { label: 'Bank soal', route: '/admin/bank-soal', icon: 'bank', permissionKey: 'bankSoal' },
   { label: 'CTA Slider', route: '/admin/cta', icon: 'cta', permissionKey: 'cta' },
@@ -123,7 +124,7 @@ const isRouteMatch = (route, { exact = true } = {}) => {
   return true
 }
 const navItems = computed(() => {
-  const allowedRoutes = ['/admin', '/admin/kuisioner', '/admin/alumni', '/admin/bank-soal']
+  const allowedRoutes = ['/admin', '/admin/kuisioner', '/admin/tracer-akreditasi', '/admin/alumni', '/admin/bank-soal']
   const applyRestrictedMenu = restrictFacultyMenu.value && (isFacultyAdmin.value || isProdiAdmin.value)
   const filterNavItems = (items) =>
     items
@@ -201,7 +202,9 @@ const confirmLogout = () => {
 }
 
 const isNavItemActive = (item) => {
-  if (item.route && isRouteMatch(item.route, { exact: !item.children?.length })) return true
+  const targetPath = getRoutePath(item.route)
+  const shouldUseExactMatch = targetPath === '/admin'
+  if (item.route && isRouteMatch(item.route, { exact: shouldUseExactMatch })) return true
   if (item.children?.length) {
     return item.children.some((child) => isNavItemActive(child))
   }
@@ -237,6 +240,13 @@ const iconPaths = {
     'M5 8h1',
     'M5 11h1',
     'M5 14h1',
+  ],
+  akreditasi: [
+    'M8 21h8',
+    'M12 17v4',
+    'M7 4h10v2a5 5 0 0 1-5 5 5 5 0 0 1-5-5V4z',
+    'M5 6H3a2 2 0 0 0 0 4h2',
+    'M19 6h2a2 2 0 0 1 0 4h-2',
   ],
   alumni: [
     'M12 13c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z',

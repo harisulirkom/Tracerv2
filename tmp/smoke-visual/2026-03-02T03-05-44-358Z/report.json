@@ -1,0 +1,128 @@
+[
+  {
+    "viewport": "desktop",
+    "route": "/",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\desktop-home.png",
+    "totalTargets": 26,
+    "visibleTargets": 26,
+    "hiddenTargets": 0,
+    "pageHeight": 4274
+  },
+  {
+    "viewport": "desktop",
+    "route": "/lowongan",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\desktop-lowongan.png",
+    "totalTargets": 13,
+    "visibleTargets": 13,
+    "hiddenTargets": 0,
+    "pageHeight": 2654
+  },
+  {
+    "viewport": "desktop",
+    "route": "/berita",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\desktop-berita.png",
+    "totalTargets": 11,
+    "visibleTargets": 11,
+    "hiddenTargets": 0,
+    "pageHeight": 2165
+  },
+  {
+    "viewport": "desktop",
+    "route": "/artikel",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\desktop-artikel.png",
+    "totalTargets": 11,
+    "visibleTargets": 11,
+    "hiddenTargets": 0,
+    "pageHeight": 1811
+  },
+  {
+    "viewport": "desktop",
+    "route": "/daftar-kuisioner",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\desktop-daftar-kuisioner.png",
+    "totalTargets": 5,
+    "visibleTargets": 5,
+    "hiddenTargets": 0,
+    "pageHeight": 1248
+  },
+  {
+    "viewport": "desktop",
+    "route": "/tentang",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\desktop-tentang.png",
+    "totalTargets": 3,
+    "visibleTargets": 3,
+    "hiddenTargets": 0,
+    "pageHeight": 1156
+  },
+  {
+    "viewport": "desktop",
+    "route": "/layanan",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\desktop-layanan.png",
+    "totalTargets": 9,
+    "visibleTargets": 9,
+    "hiddenTargets": 0,
+    "pageHeight": 1544
+  },
+  {
+    "viewport": "mobile",
+    "route": "/",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\mobile-home.png",
+    "totalTargets": 26,
+    "visibleTargets": 25,
+    "hiddenTargets": 1,
+    "pageHeight": 8707
+  },
+  {
+    "viewport": "mobile",
+    "route": "/lowongan",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\mobile-lowongan.png",
+    "totalTargets": 13,
+    "visibleTargets": 13,
+    "hiddenTargets": 0,
+    "pageHeight": 4108
+  },
+  {
+    "viewport": "mobile",
+    "route": "/berita",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\mobile-berita.png",
+    "totalTargets": 11,
+    "visibleTargets": 10,
+    "hiddenTargets": 1,
+    "pageHeight": 4852
+  },
+  {
+    "viewport": "mobile",
+    "route": "/artikel",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\mobile-artikel.png",
+    "totalTargets": 11,
+    "visibleTargets": 11,
+    "hiddenTargets": 0,
+    "pageHeight": 4125
+  },
+  {
+    "viewport": "mobile",
+    "route": "/daftar-kuisioner",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\mobile-daftar-kuisioner.png",
+    "totalTargets": 5,
+    "visibleTargets": 5,
+    "hiddenTargets": 0,
+    "pageHeight": 2279
+  },
+  {
+    "viewport": "mobile",
+    "route": "/tentang",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\mobile-tentang.png",
+    "totalTargets": 3,
+    "visibleTargets": 3,
+    "hiddenTargets": 0,
+    "pageHeight": 1661
+  },
+  {
+    "viewport": "mobile",
+    "route": "/layanan",
+    "screenshot": "C:\\PelatihanVue\\Tracerv2\\tmp\\smoke-visual\\2026-03-02T03-05-44-358Z\\mobile-layanan.png",
+    "totalTargets": 9,
+    "visibleTargets": 9,
+    "hiddenTargets": 0,
+    "pageHeight": 2439
+  }
+]
