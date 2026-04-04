@@ -15,6 +15,8 @@ const MAX_RESPONSE_PAGE = 200
 const RESPONSE_PAGE_SIZE = 200
 const RESPONSE_FETCH_BATCH_SIZE = 6
 const RESPONSE_FETCH_TIMEOUT_MS = 30_000
+const INITIAL_LOAD_TIMEOUT_MS = 3_000
+const FILTER_AUTO_REFRESH_DEBOUNCE_MS = 700
 const RESPONSE_CACHE_TTL_MS = 1000 * 60 * 5
 const RESPONSE_PERSIST_KEY = 'tracer_accreditation_response_cache'
 const NIM_COVERAGE_SAMPLE_SIZE = 120
@@ -40,6 +42,8 @@ const questionnaireMeta = ref({ id: null, title: '' })
 const isLocalDataMode = ref(!import.meta.env.VITE_API_BASE_URL)
 const activeLoadController = ref(null)
 const activeLoadSequence = ref(0)
+const autoRefreshTimer = ref(null)
+const hasInitializedAutoRefresh = ref(false)
 
 const filters = reactive({
   accreditationYear: new Date().getFullYear(),
@@ -963,7 +967,18 @@ const abortActiveLoad = () => {
   activeLoadController.value = null
 }
 
-const reloadData = async ({ forceRefresh = false } = {}) => {
+const clearAutoRefreshTimer = () => {
+  if (autoRefreshTimer.value) {
+    clearTimeout(autoRefreshTimer.value)
+    autoRefreshTimer.value = null
+  }
+}
+
+const reloadData = async ({
+  forceRefresh = false,
+  timeoutMs = RESPONSE_FETCH_TIMEOUT_MS,
+  skipLegacyFallback = false,
+} = {}) => {
   abortActiveLoad()
   const controller = new AbortController()
   activeLoadController.value = controller
@@ -994,7 +1009,7 @@ const reloadData = async ({ forceRefresh = false } = {}) => {
     isLocalDataMode.value = false
     const requestConfig = {
       signal: controller.signal,
-      timeout: RESPONSE_FETCH_TIMEOUT_MS,
+      timeout: timeoutMs,
     }
 
     try {
@@ -1031,6 +1046,14 @@ const reloadData = async ({ forceRefresh = false } = {}) => {
       if (isCanceledError(summaryErr)) return
       usingSummaryEndpoint.value = false
       summaryPayload.value = null
+      if (skipLegacyFallback) {
+        const hasCachedData = Boolean(readResponsePersistedCache())
+        if (!hasCachedData) {
+          error.value = 'Muat data awal melebihi batas 3 detik. Klik "Muat ulang" untuk mencoba lagi.'
+        }
+        appendAuditLog('warning', 'Auto-refresh dibatalkan karena respons server melebihi batas waktu awal.')
+        return
+      }
     }
 
     const alumniPromise = ensureAlumniLoaded({ forceRefresh: false })
@@ -1092,6 +1115,19 @@ const reloadData = async ({ forceRefresh = false } = {}) => {
       activeLoadController.value = null
     }
   }
+}
+
+const scheduleAutoRefresh = ({ immediate = false } = {}) => {
+  if (isLocalDataMode.value) return
+  clearAutoRefreshTimer()
+  const delay = immediate ? 0 : FILTER_AUTO_REFRESH_DEBOUNCE_MS
+  autoRefreshTimer.value = setTimeout(() => {
+    reloadData({
+      forceRefresh: true,
+      timeoutMs: RESPONSE_FETCH_TIMEOUT_MS,
+      skipLegacyFallback: true,
+    })
+  }, delay)
 }
 
 const appendAuditLog = (action, detail) => {
@@ -1265,9 +1301,22 @@ watch(
   },
 )
 
-onMounted(() => {
+watch(
+  () => [
+    filters.accreditationYear,
+    filters.fakultas,
+    filters.prodi,
+    [...filters.tsLabels].sort().join('|'),
+  ],
+  () => {
+    if (!hasInitializedAutoRefresh.value) return
+    scheduleAutoRefresh()
+  },
+)
+
+onMounted(async () => {
   if (!import.meta.env.VITE_API_BASE_URL) {
-    reloadData()
+    await reloadData()
     return
   }
   const hydrated = hydrateFromLocalCache()
@@ -1277,9 +1326,16 @@ onMounted(() => {
       : rawResponses.value.length
     appendAuditLog('refresh', `Memuat data dari cache lokal (${cachedCount} jawaban)`)
   }
+  await reloadData({
+    forceRefresh: false,
+    timeoutMs: INITIAL_LOAD_TIMEOUT_MS,
+    skipLegacyFallback: true,
+  })
+  hasInitializedAutoRefresh.value = true
 })
 
 onBeforeUnmount(() => {
+  clearAutoRefreshTimer()
   abortActiveLoad()
 })
 </script>
