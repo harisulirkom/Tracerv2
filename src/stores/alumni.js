@@ -418,7 +418,8 @@ export const useAlumni = () => {
 
     const apiReady = canUseApi && hasAuthToken()
     if (apiReady) {
-      const resp = await alumniService.updateAlumni(id, payload)
+      const requestId = state.items[index]?.id ?? id
+      const resp = await alumniService.updateAlumni(requestId, payload)
       const updated = resp?.data || resp
       if (updated) {
         const normalized = normalizeAlumni([updated])[0]

@@ -1,8 +1,39 @@
-import { get, put } from './api'
+import { get, post, put } from './api'
 
 export const getAlumni = (params = {}, config = {}) => get('/admin/alumni', { params, ...config })
 export const getAlumniById = (id) => get(`/alumni/${id}`)
-export const updateAlumni = (id, payload) => put(`/admin/alumni/${id}`, payload)
+export const updateAlumni = async (id, payload = {}) => {
+  const endpoints = [`/admin/alumni/${id}`, `/alumni/${id}`]
+  let lastError = null
+
+  for (const endpoint of endpoints) {
+    try {
+      return await put(endpoint, payload)
+    } catch (err) {
+      lastError = err
+      const status = err?.response?.status
+      const isNetworkError = !err?.response
+
+      if (status !== 404 && status !== 405 && !isNetworkError) {
+        throw err
+      }
+
+      try {
+        // Fallback for infra that blocks PUT at proxy/CORS layer.
+        return await post(endpoint, { ...payload, _method: 'PUT' })
+      } catch (fallbackErr) {
+        lastError = fallbackErr
+        const fallbackStatus = fallbackErr?.response?.status
+        const fallbackNetworkError = !fallbackErr?.response
+        if (fallbackStatus !== 404 && fallbackStatus !== 405 && !fallbackNetworkError) {
+          throw fallbackErr
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error('Gagal memperbarui data alumni.')
+}
 export const searchAlumni = (query = {}, options = {}) => {
   const params = { ...query }
   if (params.name) {

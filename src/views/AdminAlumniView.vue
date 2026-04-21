@@ -308,12 +308,14 @@ const saveEdit = async () => {
   try {
     const payload = buildUpdatePayload(editDraft.value)
     await updateAlumni(editDraft.value.id, payload)
+    await fetchAlumni({}, { forceRemote: true })
     refreshSelectedAlumni(editDraft.value.id)
     message.value = 'Data alumni berhasil diperbarui.'
     closeEdit()
   } catch (e) {
+    const statusCode = e?.response?.status
     const detail = e?.response?.data?.message || e?.message || 'Gagal memperbarui data alumni.'
-    editError.value = detail
+    editError.value = statusCode ? `[${statusCode}] ${detail}` : detail
   } finally {
     editSaving.value = false
   }
@@ -462,6 +464,25 @@ const importLocallyFromText = (text) => {
   return imported
 }
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const syncImportedAlumni = async ({ beforeNims, jobStatus }) => {
+  const queued = String(jobStatus || '').toLowerCase() === 'queued'
+  const attempts = queued ? 12 : 2
+  const intervalMs = queued ? 2500 : 700
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    await fetchAlumni({}, { forceRemote: true })
+    const hasNewData = alumni.value.items.some((item) => !beforeNims.has(String(item.nim || '')))
+    if (hasNewData || !queued) {
+      return { synced: true, hasNewData }
+    }
+    await delay(intervalMs)
+  }
+
+  return { synced: false, hasNewData: false }
+}
+
 const handleImportFile = async (event) => {
   const file = event.target?.files?.[0]
   if (!file) return
@@ -470,6 +491,7 @@ const handleImportFile = async (event) => {
   error.value = ''
   try {
     if (hasApi) {
+      const beforeNims = new Set(alumni.value.items.map((item) => String(item.nim || '')))
       const response = await importAlumniCsv(file)
       const summary = response?.summary || {}
       const parts = []
@@ -480,6 +502,25 @@ const handleImportFile = async (event) => {
       }
       const baseMessage = parts.length ? parts.join(' • ') : response?.message || 'Import alumni selesai.'
       message.value = baseMessage
+
+      const syncResult = await syncImportedAlumni({
+        beforeNims,
+        jobStatus: response?.job_status,
+      })
+
+      if (syncResult.synced) {
+        currentPage.value = 1
+        if (syncResult.hasNewData) {
+          search.value = ''
+          fakultasFilter.value = 'all'
+          prodiFilter.value = 'all'
+          tahunFilter.value = 'all'
+        }
+        importStatus.value = 'Data alumni berhasil disegarkan otomatis.'
+      } else {
+        importStatus.value = 'Import berjalan di background. Data akan muncul setelah proses queue selesai.'
+      }
+
       if (summary.errors?.length) {
         error.value = summary.errors.map((item) => item.message).join('; ')
       } else {
