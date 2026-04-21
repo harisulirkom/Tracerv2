@@ -105,7 +105,6 @@ const { alumni, fetchAlumni } = useAlumni()
 const { submissions, addSubmission, attemptsByNim } = useSubmissions()
 const {
   activeQuestionnaire,
-  fetchQuestionnaires,
   fetchActiveQuestionnaire,
   fetchQuestions,
   questionsById,
@@ -113,7 +112,27 @@ const {
   questionsError,
 } = useQuestionnaires()
 const activeAlumniQuestionnaire = computed(() => activeQuestionnaire.value)
+const serverQuestionnaireId = ref(null)
+const serverQuestionList = ref([])
+
+const normalizeListPayload = (payload) => {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.data)) return payload.data
+  if (Array.isArray(payload?.items)) return payload.items
+  return []
+}
+
+const normalizeServerQuestions = (payload) =>
+  normalizeListPayload(payload)
+    .map((item) => {
+      const numericId = Number(item?.id)
+      if (!Number.isInteger(numericId) || numericId <= 0) return null
+      return { ...item, id: numericId }
+    })
+    .filter(Boolean)
+
 const questionnaireQuestions = computed(() => {
+  if (serverQuestionList.value.length) return serverQuestionList.value
   const active = activeAlumniQuestionnaire.value
   if (!active?.id) return []
   const cached = questionsById(active.id)
@@ -568,35 +587,39 @@ const attemptHistory = computed(() => {
 })
 
 const ensureQuestionnaireReady = async () => {
-  await fetchActiveQuestionnaire('alumni', {
-    silent: true,
-    requestConfig: { skipAuthRedirect: true },
-  })
+  const requestConfig = { skipAuthRedirect: true }
+  serverQuestionnaireId.value = null
+  serverQuestionList.value = []
 
-  const activeId = activeAlumniQuestionnaire.value?.id
-  if (activeId) {
+  try {
+    const activeResp = await tracerService.getActiveQuestionnaire('alumni', requestConfig)
+    const activeItem = activeResp?.data || activeResp
+    const activeId = Number(activeItem?.id)
+    if (!Number.isInteger(activeId) || activeId <= 0) {
+      return false
+    }
+    serverQuestionnaireId.value = activeId
+
+    const questionsResp = await tracerService.getQuestions(activeId, requestConfig)
+    const normalizedQuestions = normalizeServerQuestions(questionsResp)
+    if (!normalizedQuestions.length) {
+      return false
+    }
+    serverQuestionList.value = normalizedQuestions
+
+    await fetchActiveQuestionnaire('alumni', {
+      silent: true,
+      requestConfig,
+    })
     await fetchQuestions(activeId, {
       silent: true,
-      requestConfig: { skipAuthRedirect: true },
+      requestConfig,
     })
+
+    return true
+  } catch (err) {
+    return false
   }
-
-  if (questionnaireQuestions.value.length) return true
-
-  await fetchQuestionnaires({}, {
-    publicMode: true,
-    requestConfig: { skipAuthRedirect: true },
-  })
-
-  const fallbackActiveId = activeAlumniQuestionnaire.value?.id
-  if (fallbackActiveId) {
-    await fetchQuestions(fallbackActiveId, {
-      silent: true,
-      requestConfig: { skipAuthRedirect: true },
-    })
-  }
-
-  return questionnaireQuestions.value.length > 0
 }
 
 onMounted(async () => {
@@ -807,14 +830,14 @@ const submitForm = async () => {
     lookupError.value = tokenError.value || 'Link kuisioner tidak aktif. Minta tautan baru.'
     return
   }
-  if (!activeAlumniQuestionnaire.value?.id) {
+  if (!serverQuestionnaireId.value) {
     const ready = await ensureQuestionnaireReady()
-    if (!ready && !activeAlumniQuestionnaire.value?.id) {
+    if (!ready && !serverQuestionnaireId.value) {
       lookupError.value = 'Kuisioner tidak tersedia.'
       return
     }
   }
-  if (!activeAlumniQuestionnaire.value?.id) {
+  if (!serverQuestionnaireId.value) {
     lookupError.value = 'Kuisioner tidak tersedia.'
     return
   }
@@ -972,7 +995,7 @@ const submitForm = async () => {
     const payloadNim = String(snapshot.nim || form.nim || nimInput.value || '').trim()
     const payloadAlumniId = Number(alumniId.value)
     const basePayload = {
-      questionnaire_id: activeAlumniQuestionnaire.value.id,
+      questionnaire_id: serverQuestionnaireId.value,
       answers: answersPayload,
       form_data: snapshot,
       nim: payloadNim || undefined,
