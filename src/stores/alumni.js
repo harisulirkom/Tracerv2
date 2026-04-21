@@ -348,7 +348,10 @@ export const useAlumni = () => {
 
     for (const endpoint of endpoints) {
       try {
-        response = await api.post(endpoint, buildFormData())
+        response = await api.post(endpoint, buildFormData(), {
+          // Remove JSON default header so browser can send proper multipart boundary.
+          headers: { 'Content-Type': undefined },
+        })
         break
       } catch (err) {
         lastError = err
