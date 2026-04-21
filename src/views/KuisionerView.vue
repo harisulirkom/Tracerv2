@@ -285,7 +285,10 @@ const tryApplyAlumniPayload = (payload) => {
 
 const applyAlumniData = (data) => {
   if (!data) return
-  alumniId.value = data.id || data.alumni_id || data.alumniId || alumniId.value
+  const candidateId = Number(data.id ?? data.alumni_id ?? data.alumniId)
+  if (Number.isInteger(candidateId) && candidateId > 0) {
+    alumniId.value = candidateId
+  }
   form.nama = data.nama || form.nama
   form.nim = data.nim || form.nim || nimInput.value
   form.nik = data.nik || form.nik
@@ -617,7 +620,10 @@ const validateTokenFromQuery = async () => {
     tokenError.value = ''
     formLocked.value = false
     nimInput.value = alumni.nim
-    alumniId.value = alumni.id || alumni.alumni_id || alumni.alumniId || alumniId.value
+    const tokenAlumniId = Number(alumni.id ?? alumni.alumni_id ?? alumni.alumniId)
+    if (Number.isInteger(tokenAlumniId) && tokenAlumniId > 0) {
+      alumniId.value = tokenAlumniId
+    }
     tryApplyAlumniPayload(resp || alumni)
     const normalizedToken = normalizeAlumniItem(alumni)
     if (normalizedToken) {
@@ -653,7 +659,10 @@ const handleApplyNim = async () => {
     const resp = await lookupAlumniByNim(nim)
     applied = tryApplyAlumniPayload(resp)
     if (applied) {
-      if (resp?.data?.id) alumniId.value = resp.data.id
+      const responseAlumniId = Number(resp?.data?.id)
+      if (Number.isInteger(responseAlumniId) && responseAlumniId > 0) {
+        alumniId.value = responseAlumniId
+      }
       lookupMessage.value = 'Data alumni ditemukan dan sudah diisikan ke formulir.'
     } else {
       lastError = 'Data alumni tidak ditemukan untuk NIM tersebut.'
@@ -820,8 +829,9 @@ const submitForm = async () => {
           resp?.id ||
           resp?.alumni_id ||
           resp?.alumniId
-        if (foundId) {
-          alumniId.value = foundId
+        const numericFoundId = Number(foundId)
+        if (Number.isInteger(numericFoundId) && numericFoundId > 0) {
+          alumniId.value = numericFoundId
         }
       } catch (err) {
         // ignore and show generic message below
@@ -951,11 +961,6 @@ const submitForm = async () => {
   )
 
   const answersPayload = Array.from(answersById.values())
-  const answersObject = answersPayload.reduce((acc, item) => {
-    const key = String(item.question_id)
-    acc[key] = item.jawaban
-    return acc
-  }, {})
 
   if (!answersPayload.length) {
     lookupError.value = 'Pertanyaan kuisioner belum tersedia. Muat ulang halaman dan coba lagi.'
@@ -964,22 +969,24 @@ const submitForm = async () => {
 
   // Kirim ke backend terlebih dahulu
   try {
+    const payloadNim = String(snapshot.nim || form.nim || nimInput.value || '').trim()
+    const payloadAlumniId = Number(alumniId.value)
+    const basePayload = {
+      questionnaire_id: activeAlumniQuestionnaire.value.id,
+      answers: answersPayload,
+      form_data: snapshot,
+      nim: payloadNim || undefined,
+    }
+    if (Number.isInteger(payloadAlumniId) && payloadAlumniId > 0) {
+      basePayload.alumni_id = payloadAlumniId
+    }
+
     let resp = null
     try {
-      resp = await responseService.submitResponses({
-        alumni_id: alumniId.value,
-        questionnaire_id: activeAlumniQuestionnaire.value.id,
-        answers: answersObject,
-        form_data: snapshot,
-      })
+      resp = await responseService.submitResponses(basePayload)
     } catch (err) {
       if (err?.response?.status !== 404) throw err
-      resp = await tracerService.submitAlumniAnswer({
-        alumni_id: alumniId.value,
-        questionnaire_id: activeAlumniQuestionnaire.value.id,
-        answers: answersPayload,
-        form_data: snapshot,
-      })
+      resp = await tracerService.submitAlumniAnswer(basePayload)
     }
     const attemptFromApi =
       resp?.data?.attemptNumber || resp?.data?.attempt_number || resp?.attemptNumber || resp?.attempt_number
@@ -991,6 +998,16 @@ const submitForm = async () => {
   } catch (err) {
     if (err?.response?.status === 404) {
       lookupError.value = 'Endpoint API tidak ditemukan (404). Cek VITE_API_BASE_URL atau rute /responses/submit.'
+    } else if (err?.response?.status === 422) {
+      const serverMessage = err?.response?.data?.message
+      const validationErrors = err?.response?.data?.errors
+      let detail = serverMessage
+      if (!detail && validationErrors && typeof validationErrors === 'object') {
+        detail = Object.entries(validationErrors)
+          .map(([field, value]) => `${field}: ${Array.isArray(value) ? value.join(', ') : value}`)
+          .join('; ')
+      }
+      lookupError.value = detail || 'Data tidak valid (422). Periksa NIM/alumni dan jawaban kuisioner.'
     } else {
       lookupError.value = err?.message || 'Gagal menyimpan ke server.'
     }
