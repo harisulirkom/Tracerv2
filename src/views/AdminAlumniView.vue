@@ -492,6 +492,7 @@ const handleImportFile = async (event) => {
       error.value = ''
     }
   } catch (e) {
+    const statusCode = e?.response?.status
     const serverMessage = e?.response?.data?.message
     const validationErrors = e?.response?.data?.errors
     let detail = serverMessage
@@ -501,7 +502,8 @@ const handleImportFile = async (event) => {
         .join('; ')
     }
 
-    error.value = detail || e?.message || 'Gagal mengimport data alumni.'
+    const fallback = detail || e?.message || 'Gagal mengimport data alumni.'
+    error.value = statusCode ? `[${statusCode}] ${fallback}` : fallback
     message.value = ''
   } finally {
     importLoading.value = false
@@ -604,10 +606,6 @@ const closeSiakadWarning = () => {
 
 const downloadTemplateCsv = async () => {
   try {
-    console.log('=== COPY TO CLIPBOARD METHOD ===')
-    console.log('Version: 2025-12-11 13:25 - Clipboard Solution')
-    
-    // Define headers
     const headers = [
       'Nama',
       'NIM',
@@ -622,8 +620,7 @@ const downloadTemplateCsv = async () => {
       'Tanggal Lahir',
       'Foto',
     ]
-    
-    // Sample data
+
     const sampleData = [
       [
         'SITI NURHAFIDHATUN UMAYAH',
@@ -668,8 +665,7 @@ const downloadTemplateCsv = async () => {
         'https://example.com/foto3.jpg',
       ],
     ]
-    
-    // Generate CSV content
+
     const csvContent = [headers.join(',')]
       .concat(
         sampleData.map((row) =>
@@ -677,32 +673,29 @@ const downloadTemplateCsv = async () => {
         )
       )
       .join('\n')
-    
-    console.log('CSV generated, length:', csvContent.length)
-    
-    // Try to copy to clipboard
-    try {
+
+    const isDownloaded = tryDownload(csvContent)
+    if (isDownloaded) {
+      message.value = 'Template CSV berhasil diunduh.'
+      setTimeout(() => {
+        message.value = ''
+      }, 4000)
+      return
+    }
+
+    if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(csvContent)
-      console.log('✅ Copied to clipboard successfully!')
-      
-      message.value = '✅ Template CSV berhasil di-copy ke clipboard! Paste ke Excel dan save sebagai CSV.'
+      message.value = 'Download diblokir browser. Template CSV disalin ke clipboard sebagai fallback.'
       setTimeout(() => {
         message.value = ''
       }, 5000)
-      
-      // Also try download as backup
-      tryDownload(csvContent)
-      
-    } catch (clipboardError) {
-      console.warn('Clipboard failed, showing textarea:', clipboardError)
-      
-      // Fallback: Show textarea with CSV content
-      showCsvTextarea(csvContent)
+      return
     }
-    
-  } catch (error) {
-    console.error('Error:', error)
-    error.value = 'Gagal generate template: ' + error.message
+
+    showCsvTextarea(csvContent)
+  } catch (err) {
+    console.error('Gagal generate template CSV:', err)
+    error.value = 'Gagal generate template: ' + (err?.message || 'Unknown error')
     setTimeout(() => {
       error.value = ''
     }, 5000)
@@ -717,17 +710,18 @@ const tryDownload = (csvContent) => {
     const link = document.createElement('a')
     link.href = url
     link.download = 'template-import-alumni.csv'
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    console.log('Download also attempted')
-  } catch (e) {
-    console.warn('Download failed (expected):', e)
+    return true
+  } catch (err) {
+    console.warn('Download template gagal, gunakan fallback:', err)
+    return false
   }
 }
-
 // Helper function to show CSV in textarea
 const showCsvTextarea = (csvContent) => {
-  // Create modal overlay
   const overlay = document.createElement('div')
   overlay.style.cssText = `
     position: fixed;
@@ -742,8 +736,7 @@ const showCsvTextarea = (csvContent) => {
     justify-content: center;
     padding: 20px;
   `
-  
-  // Create modal content
+
   const modal = document.createElement('div')
   modal.style.cssText = `
     background: white;
@@ -753,74 +746,92 @@ const showCsvTextarea = (csvContent) => {
     width: 100%;
     box-shadow: 0 10px 40px rgba(0,0,0,0.3);
   `
-  
-  modal.innerHTML = `
-    <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #1e293b;">
-      📋 Copy Template CSV
-    </h3>
-    <p style="margin: 0 0 12px 0; font-size: 14px; color: #64748b;">
-      Browser memblokir download. Silakan copy data di bawah, paste ke Excel, lalu save sebagai CSV:
-    </p>
-    <textarea id="csvTextarea" readonly style="
-      width: 100%;
-      height: 300px;
-      padding: 12px;
-      border: 2px solid #e2e8f0;
-      border-radius: 8px;
-      font-family: 'Courier New', monospace;
-      font-size: 12px;
-      resize: vertical;
-      margin-bottom: 16px;
-    ">${csvContent}</textarea>
-    <div style="display: flex; gap: 12px; justify-content: flex-end;">
-      <button id="copyBtn" style="
-        background: #4f46e5;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 14px;
-      ">
-        📋 Copy ke Clipboard
-      </button>
-      <button id="closeBtn" style="
-        background: #e2e8f0;
-        color: #475569;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 6px;
-        font-weight: 600;
-        cursor: pointer;
-        font-size: 14px;
-      ">
-        Tutup
-      </button>
-    </div>
+
+  const title = document.createElement('h3')
+  title.textContent = 'Copy Template CSV'
+  title.style.cssText = 'margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #1e293b;'
+
+  const info = document.createElement('p')
+  info.textContent =
+    'Browser memblokir download. Silakan copy data di bawah, paste ke Excel, lalu save sebagai CSV:'
+  info.style.cssText = 'margin: 0 0 12px 0; font-size: 14px; color: #64748b;'
+
+  const textarea = document.createElement('textarea')
+  textarea.readOnly = true
+  textarea.value = csvContent
+  textarea.style.cssText = `
+    width: 100%;
+    height: 300px;
+    padding: 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    resize: vertical;
+    margin-bottom: 16px;
   `
-  
+
+  const actions = document.createElement('div')
+  actions.style.cssText = 'display: flex; gap: 12px; justify-content: flex-end;'
+
+  const copyBtn = document.createElement('button')
+  copyBtn.type = 'button'
+  copyBtn.textContent = 'Copy ke Clipboard'
+  copyBtn.style.cssText = `
+    background: #4f46e5;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+  `
+
+  const closeBtn = document.createElement('button')
+  closeBtn.type = 'button'
+  closeBtn.textContent = 'Tutup'
+  closeBtn.style.cssText = `
+    background: #e2e8f0;
+    color: #475569;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+  `
+
+  actions.appendChild(copyBtn)
+  actions.appendChild(closeBtn)
+  modal.appendChild(title)
+  modal.appendChild(info)
+  modal.appendChild(textarea)
+  modal.appendChild(actions)
   overlay.appendChild(modal)
   document.body.appendChild(overlay)
-  
-  // Select all text
-  const textarea = document.getElementById('csvTextarea')
+
+  textarea.focus()
   textarea.select()
-  
-  // Copy button handler
-  document.getElementById('copyBtn').onclick = () => {
-    textarea.select()
-    document.execCommand('copy')
-    message.value = '✅ CSV berhasil di-copy! Paste ke Excel.'
+
+  copyBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(textarea.value)
+    } catch (clipboardErr) {
+      textarea.select()
+      document.execCommand('copy')
+    }
+    message.value = 'CSV berhasil di-copy! Paste ke Excel.'
+    setTimeout(() => {
+      message.value = ''
+    }, 4000)
     overlay.remove()
   }
-  
-  // Close button handler
-  document.getElementById('closeBtn').onclick = () => {
+
+  closeBtn.onclick = () => {
     overlay.remove()
   }
-  
-  // Close on overlay click
+
   overlay.onclick = (e) => {
     if (e.target === overlay) overlay.remove()
   }
@@ -1946,3 +1957,4 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
   </AdminShell>
   <LoadingOverlay :active="pageLoading" />
 </template>
+

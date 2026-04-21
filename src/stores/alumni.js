@@ -334,12 +334,35 @@ export const useAlumni = () => {
       throw new Error('Backend tidak tersedia pada mode offline.')
     }
 
-    const formData = new FormData()
-    formData.append('alumni_csv', file)
+    const buildFormData = () => {
+      const formData = new FormData()
+      // Backward compatibility: some backend versions use `file`, others `alumni_csv`.
+      formData.append('file', file, file.name)
+      formData.append('alumni_csv', file, file.name)
+      return formData
+    }
 
-    const response = await api.post('/import-alumni', formData, {
-      headers: { 'Content-Type': undefined },
-    })
+    const endpoints = ['/admin/alumni/import', '/alumni/import', '/import-alumni']
+    let lastError = null
+    let response = null
+
+    for (const endpoint of endpoints) {
+      try {
+        response = await api.post(endpoint, buildFormData())
+        break
+      } catch (err) {
+        lastError = err
+        const status = err?.response?.status
+        // Try fallback endpoints only when route/method is unavailable.
+        if (status !== 404 && status !== 405) {
+          throw err
+        }
+      }
+    }
+
+    if (!response) {
+      throw lastError || new Error('Endpoint import alumni tidak ditemukan di server.')
+    }
 
     clearPersisted()
     await fetchAlumni({}, { forceRemote: true })
