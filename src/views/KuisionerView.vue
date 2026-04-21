@@ -105,6 +105,7 @@ const { alumni, fetchAlumni } = useAlumni()
 const { submissions, addSubmission, attemptsByNim } = useSubmissions()
 const {
   activeQuestionnaire,
+  fetchQuestionnaires,
   fetchActiveQuestionnaire,
   fetchQuestions,
   questionsById,
@@ -112,9 +113,14 @@ const {
   questionsError,
 } = useQuestionnaires()
 const activeAlumniQuestionnaire = computed(() => activeQuestionnaire.value)
-const questionnaireQuestions = computed(() =>
-  activeAlumniQuestionnaire.value?.id ? questionsById(activeAlumniQuestionnaire.value.id) : [],
-)
+const questionnaireQuestions = computed(() => {
+  const active = activeAlumniQuestionnaire.value
+  if (!active?.id) return []
+  const cached = questionsById(active.id)
+  if (Array.isArray(cached) && cached.length) return cached
+  const embedded = Array.isArray(active?.questions) ? active.questions.filter((item) => item?.id) : []
+  return embedded
+})
 
 const alumniLabels = computed(() => {
   const find = (code, keywords = [], def = '') => {
@@ -558,17 +564,44 @@ const attemptHistory = computed(() => {
   return attemptsByNim(nimKey, 'alumni')
 })
 
-onMounted(async () => {
-  // Only fetch questionnaire for public view. 
-  // Alumni data is fetched via 'Apply NIM' (lookup) or Token.
-  // DO NOT fetchAlumni() here - it leaks data and requires Admin auth.
-  await fetchActiveQuestionnaire('alumni')
-  
-  if (activeAlumniQuestionnaire.value?.id) {
-    fetchQuestions(activeAlumniQuestionnaire.value.id)
+const ensureQuestionnaireReady = async () => {
+  await fetchActiveQuestionnaire('alumni', {
+    silent: true,
+    requestConfig: { skipAuthRedirect: true },
+  })
+
+  const activeId = activeAlumniQuestionnaire.value?.id
+  if (activeId) {
+    await fetchQuestions(activeId, {
+      silent: true,
+      requestConfig: { skipAuthRedirect: true },
+    })
   }
-  await validateTokenFromQuery()
-  await loadProvinces()
+
+  if (questionnaireQuestions.value.length) return true
+
+  await fetchQuestionnaires({}, {
+    publicMode: true,
+    requestConfig: { skipAuthRedirect: true },
+  })
+
+  const fallbackActiveId = activeAlumniQuestionnaire.value?.id
+  if (fallbackActiveId) {
+    await fetchQuestions(fallbackActiveId, {
+      silent: true,
+      requestConfig: { skipAuthRedirect: true },
+    })
+  }
+
+  return questionnaireQuestions.value.length > 0
+}
+
+onMounted(async () => {
+  await Promise.allSettled([
+    ensureQuestionnaireReady(),
+    validateTokenFromQuery(),
+    loadProvinces(),
+  ])
 })
 
 const validateTokenFromQuery = async () => {
@@ -590,7 +623,9 @@ const validateTokenFromQuery = async () => {
     if (normalizedToken) {
       applyAlumniData(normalizedToken)
     }
-    await handleApplyNim()
+    if (!alumniId.value) {
+      await handleApplyNim()
+    }
     lookupMessage.value = 'Data alumni otomatis diisi dari tautan khusus.'
   } catch (err) {
     const message =
@@ -697,8 +732,25 @@ const handleSearchNim = async () => {
 const copyNim = async () => {
   if (!searchResultNim.value) return
   try {
-    await navigator.clipboard.writeText(searchResultNim.value)
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(searchResultNim.value)
+    } else {
+      const temp = document.createElement('textarea')
+      temp.value = searchResultNim.value
+      temp.setAttribute('readonly', '')
+      temp.style.position = 'fixed'
+      temp.style.opacity = '0'
+      document.body.appendChild(temp)
+      temp.focus()
+      temp.select()
+      const copied = document.execCommand('copy')
+      document.body.removeChild(temp)
+      if (!copied) {
+        throw new Error('Clipboard API tidak tersedia.')
+      }
+    }
     searchMessage.value = 'NIM sudah disalin ke clipboard.'
+    searchError.value = ''
   } catch (e) {
     searchError.value = 'Gagal menyalin NIM.'
   }
@@ -747,6 +799,13 @@ const submitForm = async () => {
     return
   }
   if (!activeAlumniQuestionnaire.value?.id) {
+    const ready = await ensureQuestionnaireReady()
+    if (!ready && !activeAlumniQuestionnaire.value?.id) {
+      lookupError.value = 'Kuisioner tidak tersedia.'
+      return
+    }
+  }
+  if (!activeAlumniQuestionnaire.value?.id) {
     lookupError.value = 'Kuisioner tidak tersedia.'
     return
   }
@@ -775,11 +834,23 @@ const submitForm = async () => {
   }
   const snapshot = JSON.parse(JSON.stringify(form))
   // Siapkan jawaban minimal untuk dikirim ke backend (mapping ke pertanyaan tracer)
-  const qList = questionnaireQuestions.value || []
+  let qList = questionnaireQuestions.value || []
+  if (!qList.length) {
+    const ready = await ensureQuestionnaireReady()
+    qList = questionnaireQuestions.value || []
+    if (!ready || !qList.length) {
+      lookupError.value = 'Pertanyaan kuisioner belum tersedia. Coba lagi beberapa saat.'
+      return
+    }
+  }
   const findQ = (needle) => {
     const lowered = String(needle || '').trim().toLowerCase()
     if (!lowered) return null
-    return qList.find((q) => normalizeQuestionLabel(q).includes(lowered)) || null
+    return (
+      qList.find((q) => normalizeQuestionLabel(q).includes(lowered)) ||
+      qList.find((q) => String(q?.code || '').toLowerCase().includes(lowered)) ||
+      null
+    )
   }
   const answersById = new Map()
   const addAnswer = (question, value) => {

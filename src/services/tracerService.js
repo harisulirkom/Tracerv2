@@ -12,8 +12,8 @@ export const updateQuestionnaire = (id, payload) => put(`/questionnaires/${id}`,
 
 export const deleteQuestionnaire = (id) => del(`/questionnaires/${id}`)
 
-export const getQuestions = (questionnaireId) =>
-  get(`/questionnaires/${questionnaireId}/questions`)
+export const getQuestions = (questionnaireId, requestConfig = {}) =>
+  get(`/questionnaires/${questionnaireId}/questions`, requestConfig)
 
 export const createQuestion = (questionnaireId, payload) =>
   post(`/questionnaires/${questionnaireId}/questions`, payload)

@@ -20,6 +20,12 @@ const normalizeFromApi = (payload) => {
   return []
 }
 
+const normalizeQuestionList = (payload) => {
+  const list = normalizeFromApi(payload)
+  if (!Array.isArray(list)) return []
+  return list.filter((item) => item && item.id)
+}
+
 const defaultQuestionSections = [
   {
     id: 'identitas',
@@ -522,6 +528,10 @@ export const useQuestionnaires = () => {
         const resp = await tracerService.getActiveQuestionnaire(audience, requestConfig)
         const item = resp?.data || resp
         if (item?.id) {
+          const questionCandidates = normalizeQuestionList(item?.questions)
+          if (questionCandidates.length) {
+            state.questions[item.id] = questionCandidates
+          }
           const idx = state.items.findIndex((q) => q.id === item.id)
           if (idx !== -1) {
             state.items.splice(idx, 1, item)
@@ -550,13 +560,16 @@ export const useQuestionnaires = () => {
   }
 
   const fetchQuestions = async (questionnaireId) => {
+    const options = arguments[1] || {}
+    const requestConfig = options?.requestConfig || {}
+    const silent = Boolean(options?.silent)
     if (!questionnaireId) return []
     state.questionsLoading = true
     state.questionsError = ''
     try {
       if (canUseApi) {
-        const resp = await tracerService.getQuestions(questionnaireId)
-        const list = normalizeFromApi(resp)
+        const resp = await tracerService.getQuestions(questionnaireId, requestConfig)
+        const list = normalizeQuestionList(resp)
         state.questions[questionnaireId] = list
         return list
       }
@@ -568,7 +581,7 @@ export const useQuestionnaires = () => {
         state.questionsError = ''
         return state.questions[questionnaireId] || []
       }
-      state.questionsError = err?.message || 'Gagal memuat pertanyaan'
+      state.questionsError = silent ? '' : err?.message || 'Gagal memuat pertanyaan'
       return state.questions[questionnaireId] || []
     } finally {
       state.questionsLoading = false
