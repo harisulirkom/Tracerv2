@@ -10,7 +10,33 @@ export const createQuestionnaire = (payload) => post('/questionnaires', payload)
 
 export const updateQuestionnaire = (id, payload) => put(`/questionnaires/${id}`, payload)
 
-export const deleteQuestionnaire = (id) => del(`/questionnaires/${id}`)
+const toSafeId = (value) => encodeURIComponent(String(value ?? '').trim())
+
+const deleteWithMethodOverride = async (endpoint) => {
+  try {
+    return await del(endpoint)
+  } catch (err) {
+    const status = err?.response?.status
+    const isNetworkError = !err?.response
+
+    if (!isNetworkError && ![405, 419, 500, 502, 503, 504].includes(status)) {
+      throw err
+    }
+
+    const payload = new URLSearchParams()
+    payload.set('_method', 'DELETE')
+    return post(endpoint, payload, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
+  }
+}
+
+export const deleteQuestionnaire = async (id) => {
+  const safeId = toSafeId(id)
+  return deleteWithMethodOverride(`/questionnaires/${safeId}`)
+}
 
 export const getQuestions = (questionnaireId, requestConfig = {}) =>
   get(`/questionnaires/${questionnaireId}/questions`, requestConfig)
@@ -21,8 +47,11 @@ export const createQuestion = (questionnaireId, payload) =>
 export const updateQuestion = (questionnaireId, questionId, payload) =>
   put(`/questionnaires/${questionnaireId}/questions/${questionId}`, payload)
 
-export const deleteQuestion = (questionnaireId, questionId) =>
-  del(`/questionnaires/${questionnaireId}/questions/${questionId}`)
+export const deleteQuestion = async (questionnaireId, questionId) => {
+  const safeQuestionnaireId = toSafeId(questionnaireId)
+  const safeQuestionId = toSafeId(questionId)
+  return deleteWithMethodOverride(`/questionnaires/${safeQuestionnaireId}/questions/${safeQuestionId}`)
+}
 
 export const getResponses = (questionnaireId, query = {}, requestConfig = {}) =>
   get(`/questionnaires/${questionnaireId}/responses`, { params: query, ...requestConfig })

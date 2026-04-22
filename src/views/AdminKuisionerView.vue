@@ -154,7 +154,14 @@ const handleDelete = async (id) => {
     if (editingId.value === id) resetForm()
     message.value = 'Kuisioner berhasil dihapus.'
   } catch (e) {
-    error.value = e?.message || 'Gagal menghapus kuisioner. Pastikan endpoint /questionnaires/{id} tersedia.'
+    const status = e?.response?.status
+    const serverMessage = e?.response?.data?.message
+    error.value =
+      serverMessage ||
+      e?.message ||
+      (status
+        ? `Gagal menghapus kuisioner (HTTP ${status}).`
+        : 'Gagal menghapus kuisioner. Pastikan endpoint /questionnaires/{id} tersedia.')
   }
 }
 
