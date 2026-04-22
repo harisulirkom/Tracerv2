@@ -826,6 +826,8 @@ const serializeCompetencyValues = (values = {}, fieldDefs = {}) =>
 const submitForm = async () => {
   lookupError.value = ''
   lookupMessage.value = ''
+  const queryToken = String(route.query?.token || '').trim()
+  const isTokenMode = queryToken.length > 0
   if (formLocked.value) {
     lookupError.value = tokenError.value || 'Link kuisioner tidak aktif. Minta tautan baru.'
     return
@@ -861,7 +863,7 @@ const submitForm = async () => {
       }
     }
   }
-  if (!alumniId.value) {
+  if (!alumniId.value && !isTokenMode) {
     lookupError.value = 'Data alumni belum terisi. Gunakan Apply NIM terlebih dahulu.'
     return
   }
@@ -1000,16 +1002,32 @@ const submitForm = async () => {
       form_data: snapshot,
       nim: payloadNim || undefined,
     }
-    if (Number.isInteger(payloadAlumniId) && payloadAlumniId > 0) {
+    if (!isTokenMode && Number.isInteger(payloadAlumniId) && payloadAlumniId > 0) {
       basePayload.alumni_id = payloadAlumniId
     }
 
     let resp = null
-    try {
-      resp = await responseService.submitResponses(basePayload)
-    } catch (err) {
-      if (err?.response?.status !== 404) throw err
-      resp = await tracerService.submitAlumniAnswer(basePayload)
+    if (isTokenMode) {
+      const tokenPayload = {
+        token: queryToken,
+        questionnaire_id: serverQuestionnaireId.value,
+        answers: answersPayload,
+        form_data: snapshot,
+      }
+      try {
+        resp = await responseService.submitResponsesViaToken(tokenPayload)
+      } catch (err) {
+        if (err?.response?.status !== 404) throw err
+        // Fallback ke endpoint umum jika backend belum expose rute token
+        resp = await responseService.submitResponses(basePayload)
+      }
+    } else {
+      try {
+        resp = await responseService.submitResponses(basePayload)
+      } catch (err) {
+        if (err?.response?.status !== 404) throw err
+        resp = await tracerService.submitAlumniAnswer(basePayload)
+      }
     }
     const attemptFromApi =
       resp?.data?.attemptNumber || resp?.data?.attempt_number || resp?.attemptNumber || resp?.attempt_number
@@ -1032,7 +1050,8 @@ const submitForm = async () => {
       }
       lookupError.value = detail || 'Data tidak valid (422). Periksa NIM/alumni dan jawaban kuisioner.'
     } else {
-      lookupError.value = err?.message || 'Gagal menyimpan ke server.'
+      const serverMessage = err?.response?.data?.message
+      lookupError.value = serverMessage || err?.message || 'Gagal menyimpan ke server.'
     }
     return
   }
