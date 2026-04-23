@@ -42,7 +42,7 @@ const handleSubmit = async () => {
 
   saving.value = true
 
-  const ok = auth.updateProfile({
+  const ok = await auth.updateProfile({
     avatar: form.avatar,
     fullName: form.fullName,
     username: form.username,

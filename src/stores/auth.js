@@ -71,6 +71,7 @@ const state = reactive({
 })
 
 let avatarMap = {}
+let profileSyncAttempted = false
 
 const loadAvatarMap = () => {
   try {
@@ -108,8 +109,13 @@ const storeAvatarForEmail = (email, avatarUrl) => {
   saveAvatarMap()
 }
 
+const normalizeAvatarValue = (value) => {
+  const text = String(value || '').trim()
+  return text || null
+}
+
 const mergeAvatarWithEmail = (email, candidate) =>
-  getStoredAvatar(email) || candidate || DEFAULT_AVATAR
+  normalizeAvatarValue(candidate) || getStoredAvatar(email) || DEFAULT_AVATAR
 
 loadAvatarMap()
 const saveAccounts = () => {
@@ -224,6 +230,60 @@ export const useAuth = () => {
   const isAuthenticated = computed(() => !!state.user && !!state.token)
   const userManagement = useUserManagement()
 
+  const toAuthUser = (profile = {}, fallback = {}) => {
+    const email = profile.email || fallback.email || ''
+    const name =
+      profile.fullName ||
+      profile.name ||
+      fallback.fullName ||
+      fallback.name ||
+      'Admin'
+    const username =
+      profile.username ||
+      fallback.username ||
+      (email ? String(email).split('@')[0] : '')
+    const avatarCandidate =
+      profile.avatar ||
+      profile.avatar_url ||
+      profile.avatarUrl ||
+      fallback.avatar
+    const role =
+      normalizeRoleLabel({
+        role: profile.role ?? fallback.role,
+        role_name: profile.role_name,
+        roleName: profile.roleName,
+        role_id: profile.role_id,
+        roleId: profile.roleId,
+      }) || fallback.role || 'Admin'
+
+    return {
+      id: profile.id ?? fallback.id,
+      email,
+      name,
+      fullName: name,
+      username,
+      avatar: mergeAvatarWithEmail(email, avatarCandidate),
+      role,
+      status: profile.status || fallback.status || 'Aktif',
+    }
+  }
+
+  if (canUseApi && state.token && !isLocalFallbackToken(state.token) && !profileSyncAttempted) {
+    profileSyncAttempted = true
+    userService
+      .getProfile()
+      .then((resp) => {
+        const profile = resp?.data || resp
+        if (!profile?.email) return
+        const normalized = toAuthUser(profile, state.user || {})
+        state.user = normalized
+        saveUser(normalized)
+      })
+      .catch(() => {
+        // ignore silent profile sync failure
+      })
+  }
+
   const isTokenExpired = () => {
     if (!state.token) return true
     if (!state.tokenExpiresAt) return false
@@ -277,23 +337,7 @@ export const useAuth = () => {
   const login = (email, password) => {
     const targetEmail = (email || '').toLowerCase()
     const canFallbackToLocal = !canUseApi || ENABLE_LOCAL_AUTH_FALLBACK
-    const toAuthUser = (profile = {}) => ({
-      id: profile.id,
-      email: profile.email,
-      name: profile.fullName || profile.name || 'Admin',
-      fullName: profile.fullName || profile.name || 'Admin',
-      username: profile.username || '',
-      avatar: mergeAvatarWithEmail(profile.email, profile.avatar),
-      role:
-        normalizeRoleLabel({
-          role: profile.role,
-          role_name: profile.role_name,
-          roleName: profile.roleName,
-          role_id: profile.role_id,
-          roleId: profile.roleId,
-        }) || 'Admin',
-      status: profile.status || 'Aktif',
-    })
+
     const doLocalLogin = () => {
       const accounts = buildAccountList()
       const match = accounts.find(
@@ -342,7 +386,7 @@ export const useAuth = () => {
           setApiAuthToken(token)
         }
         if (profile?.email) {
-          const user = toAuthUser(profile)
+          const user = toAuthUser(profile, state.user || {})
           state.user = user
           saveUser(user)
           return true
@@ -353,7 +397,7 @@ export const useAuth = () => {
             const meResp = await userService.getProfile()
             const meProfile = meResp?.data || meResp
             if (meProfile?.email) {
-              const user = toAuthUser(meProfile)
+              const user = toAuthUser(meProfile, state.user || {})
               state.user = user
               saveUser(user)
               return true
@@ -379,10 +423,58 @@ export const useAuth = () => {
     clearToken()
   }
 
-  const updateProfile = (updates) => {
+  const updateProfile = async (updates = {}) => {
     if (!state.user) return false
+    const previousUser = { ...state.user }
 
-    const managedUser = userManagement?.users?.value?.find((u) => u.id === state.user.id)
+    const payload = {}
+    const nameValue = updates.fullName ?? updates.name
+    if (nameValue !== undefined) payload.name = String(nameValue || '').trim()
+    if (updates.username !== undefined) payload.username = String(updates.username || '').trim() || null
+    if (updates.email !== undefined) payload.email = String(updates.email || '').trim()
+    if (updates.avatar !== undefined) payload.avatar = updates.avatar || null
+    if (updates.password) payload.password = updates.password
+
+    const canRemoteUpdate = canUseApi && state.token && !isLocalFallbackToken(state.token)
+    if (canRemoteUpdate) {
+      try {
+        const resp = await userService.updateProfile(payload)
+        let remoteProfile = resp?.user || resp?.data?.user || resp?.data || resp
+
+        if (!remoteProfile?.email) {
+          try {
+            const meResp = await userService.getProfile()
+            const meProfile = meResp?.data || meResp
+            if (meProfile && typeof meProfile === 'object') {
+              remoteProfile = { ...remoteProfile, ...meProfile }
+            }
+          } catch (e) {
+            // ignore secondary fetch failure, fallback to local merge below
+          }
+        }
+
+        const mergedProfile =
+          remoteProfile && typeof remoteProfile === 'object'
+            ? remoteProfile
+            : {
+                ...previousUser,
+                name: payload.name ?? previousUser.name,
+                fullName: payload.name ?? previousUser.fullName,
+                username: payload.username ?? previousUser.username,
+                email: payload.email ?? previousUser.email,
+                avatar: payload.avatar ?? previousUser.avatar,
+              }
+
+        const normalized = toAuthUser(mergedProfile, previousUser)
+        state.user = normalized
+        saveUser(normalized)
+        return true
+      } catch (e) {
+        return false
+      }
+    }
+
+    const managedUser = userManagement?.users?.value?.find((u) => u.id === previousUser.id)
     if (managedUser) {
       const payload = {
         ...updates,
@@ -407,16 +499,19 @@ export const useAuth = () => {
           ...payload,
         }
 
-      const updatedUser = {
-        id: refreshed.id,
-        email: refreshed.email,
-        name: refreshed.fullName || refreshed.name || 'Admin',
-        fullName: refreshed.fullName || refreshed.name || 'Admin',
-        username: refreshed.username || '',
-        avatar: updates.avatar || state.user.avatar || DEFAULT_AVATAR,
-        role: refreshed.role,
-        status: refreshed.status || 'Aktif',
-      }
+      const updatedUser = toAuthUser(
+        {
+          id: refreshed.id,
+          email: refreshed.email,
+          name: refreshed.fullName || refreshed.name || 'Admin',
+          fullName: refreshed.fullName || refreshed.name || 'Admin',
+          username: refreshed.username || '',
+          avatar: updates.avatar || refreshed.avatar || previousUser.avatar,
+          role: refreshed.role,
+          status: refreshed.status || 'Aktif',
+        },
+        previousUser,
+      )
 
       state.user = updatedUser
       saveUser(updatedUser)
@@ -424,7 +519,7 @@ export const useAuth = () => {
       return true
     }
 
-    const idx = state.accounts.findIndex((acc) => acc.email === state.user.email)
+    const idx = state.accounts.findIndex((acc) => acc.email === previousUser.email)
     if (idx === -1) return false
 
     const current = state.accounts[idx]
@@ -443,15 +538,18 @@ export const useAuth = () => {
     state.accounts.splice(idx, 1, updatedAccount)
     saveAccounts()
 
-    const updatedUser = {
-      id: updatedAccount.id,
-      email: updatedAccount.email,
-      name: updatedAccount.fullName || updatedAccount.name || 'Admin',
-      fullName: updatedAccount.fullName || updatedAccount.name || 'Admin',
-      username: updatedAccount.username || '',
-      avatar: updatedAccount.avatar || DEFAULT_AVATAR,
-      role: updatedAccount.role || state.user.role,
-    }
+    const updatedUser = toAuthUser(
+      {
+        id: updatedAccount.id,
+        email: updatedAccount.email,
+        name: updatedAccount.fullName || updatedAccount.name || 'Admin',
+        fullName: updatedAccount.fullName || updatedAccount.name || 'Admin',
+        username: updatedAccount.username || '',
+        avatar: updatedAccount.avatar || DEFAULT_AVATAR,
+        role: updatedAccount.role || previousUser.role,
+      },
+      previousUser,
+    )
 
     state.user = updatedUser
     saveUser(updatedUser)
