@@ -13,7 +13,10 @@ export const logout = () => post('/logout').finally(() => clearAuthToken())
 
 export const getProfile = () => get('/user')
 
-export const updateProfile = (payload) => put('/user', payload)
+export const updateProfile = (payload) =>
+  put('/user', payload, {
+    timeout: 60000,
+  })
 
 export const getUsers = (params = {}) => get('/admin/users', { params })
 

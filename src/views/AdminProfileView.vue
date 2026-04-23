@@ -19,21 +19,82 @@ const form = reactive({
 })
 
 const saving = ref(false)
+const processingAvatar = ref(false)
 const confirmSaveOpen = ref(false)
 const message = ref('')
 const error = ref('')
 
-const handleAvatarChange = (event) => {
+const fileToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error('Gagal membaca file gambar.'))
+    reader.readAsDataURL(file)
+  })
+
+const loadImage = (src) =>
+  new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('Gagal memuat pratinjau gambar.'))
+    img.src = src
+  })
+
+const compressAvatarImage = async (file) => {
+  const source = await fileToDataUrl(file)
+  if (typeof source !== 'string') {
+    throw new Error('Format gambar tidak valid.')
+  }
+
+  const image = await loadImage(source)
+  const maxDimension = 720
+  const ratio = Math.min(1, maxDimension / Math.max(image.width, image.height))
+  const width = Math.max(1, Math.round(image.width * ratio))
+  const height = Math.max(1, Math.round(image.height * ratio))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Browser tidak mendukung pemrosesan gambar.')
+  }
+
+  context.drawImage(image, 0, 0, width, height)
+
+  let quality = 0.85
+  let dataUrl = canvas.toDataURL('image/jpeg', quality)
+
+  // Keep payload small so reverse proxy / PHP body limits are less likely to reject it.
+  while (dataUrl.length > 850_000 && quality > 0.45) {
+    quality -= 0.1
+    dataUrl = canvas.toDataURL('image/jpeg', quality)
+  }
+
+  if (dataUrl.length > 950_000) {
+    throw new Error('Ukuran foto terlalu besar. Gunakan foto dengan resolusi lebih kecil.')
+  }
+
+  return dataUrl
+}
+
+const handleAvatarChange = async (event) => {
   const [file] = event.target.files || []
   if (!file) return
 
-  const reader = new FileReader()
-  reader.onload = () => {
-    if (typeof reader.result === 'string') {
-      form.avatar = reader.result
-    }
+  message.value = ''
+  error.value = ''
+  processingAvatar.value = true
+
+  try {
+    const compressed = await compressAvatarImage(file)
+    form.avatar = compressed
+  } catch (e) {
+    error.value = e?.message || 'Gagal memproses foto profil.'
+  } finally {
+    processingAvatar.value = false
   }
-  reader.readAsDataURL(file)
 }
 
 const handleSubmit = async () => {
@@ -123,6 +184,9 @@ const goBack = () => {
                   class="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-900 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800"
                   @change="handleAvatarChange"
                 />
+                <p v-if="processingAvatar" class="mt-2 text-xs text-slate-500">
+                  Memproses foto agar upload lebih stabil...
+                </p>
               </div>
 
               <div class="md:col-span-2">
@@ -172,7 +236,7 @@ const goBack = () => {
                 <button
                   type="submit"
                   class="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                  :disabled="saving"
+                  :disabled="saving || processingAvatar"
                 >
                   {{ saving ? 'Menyimpan...' : 'Simpan perubahan' }}
                 </button>
