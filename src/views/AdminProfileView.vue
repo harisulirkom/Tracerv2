@@ -20,6 +20,7 @@ const form = reactive({
 
 const saving = ref(false)
 const processingAvatar = ref(false)
+const avatarDirty = ref(false)
 const confirmSaveOpen = ref(false)
 const message = ref('')
 const error = ref('')
@@ -90,6 +91,7 @@ const handleAvatarChange = async (event) => {
   try {
     const compressed = await compressAvatarImage(file)
     form.avatar = compressed
+    avatarDirty.value = true
   } catch (e) {
     error.value = e?.message || 'Gagal memproses foto profil.'
   } finally {
@@ -104,7 +106,7 @@ const handleSubmit = async () => {
   saving.value = true
 
   const ok = await auth.updateProfile({
-    avatar: form.avatar,
+    ...(avatarDirty.value ? { avatar: form.avatar } : {}),
     fullName: form.fullName,
     username: form.username,
     email: form.email,
@@ -116,6 +118,7 @@ const handleSubmit = async () => {
   if (ok) {
     message.value = 'Profil berhasil diperbarui'
     form.password = ''
+    avatarDirty.value = false
   } else {
     error.value = 'Gagal memperbarui profil admin'
   }
