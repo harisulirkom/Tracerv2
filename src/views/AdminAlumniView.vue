@@ -14,7 +14,7 @@ import {
 } from '../services/alumniBlastService'
 
 const router = useRouter()
-const { alumni, fetchAlumni, addAlumni, updateAlumni, exportAlumniCsv, markSent, importAlumniCsv } = useAlumni()
+const { alumni, fetchAlumni, addAlumni, updateAlumni, exportAlumniCsv, markSent, importAlumniCsv, getImportProgress } = useAlumni()
 const auth = useAuth()
 const { permissions } = useUserManagement()
 const defaultAvatar = 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=240&q=60'
@@ -29,6 +29,8 @@ const message = ref('')
 const error = ref('')
 const importLoading = ref(false)
 const importStatus = ref('')
+const importProgress = ref(0)
+const importProgressLabel = ref('')
 const importModalOpen = ref(false)
 const importInput = ref(null)
 const showDetailModal = ref(false)
@@ -410,6 +412,8 @@ const handleImportClick = () => {
   message.value = ''
   error.value = ''
   importStatus.value = ''
+  importProgress.value = 0
+  importProgressLabel.value = ''
   importModalOpen.value = true
 }
 
@@ -477,6 +481,56 @@ const importLocallyFromText = (text) => {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const updateImportProgress = (percent, label = '') => {
+  importProgress.value = Math.max(0, Math.min(100, Number(percent || 0)))
+  importProgressLabel.value = label
+}
+
+const waitImportProgressCompletion = async (importId) => {
+  if (!importId) {
+    return null
+  }
+
+  const maxAttempts = 180 // ~3 menit (interval 1 detik)
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const progress = await alumniStoreProgress(importId)
+    if (!progress) {
+      await delay(1000)
+      continue
+    }
+
+    const status = String(progress.status || '').toLowerCase()
+    const percent = Number(progress.percentage || 0)
+    const done = Number(progress.success_count || 0)
+    const total = Number(progress.total_rows || 0)
+    const phase = status === 'completed' ? 'Selesai memproses data...' : 'Memproses data di server...'
+    updateImportProgress(percent, total > 0 ? `${phase} ${done}/${total}` : phase)
+
+    if (status === 'completed') {
+      updateImportProgress(100, total > 0 ? `Import selesai: ${done}/${total} baris berhasil.` : 'Import selesai diproses.')
+      return progress
+    }
+
+    if (status === 'failed') {
+      throw new Error(progress.message || 'Import gagal diproses di server.')
+    }
+
+    await delay(1000)
+  }
+
+  return null
+}
+
+const alumniStoreProgress = async (importId) => {
+  try {
+    return await getImportProgress(importId)
+  } catch (e) {
+    const status = e?.response?.status
+    if (status === 404) return null
+    throw e
+  }
+}
+
 const syncImportedAlumni = async ({ beforeNims, jobStatus }) => {
   const queued = String(jobStatus || '').toLowerCase() === 'queued'
   const attempts = queued ? 12 : 2
@@ -500,10 +554,24 @@ const handleImportFile = async (event) => {
   importLoading.value = true
   message.value = ''
   error.value = ''
+  importStatus.value = ''
+  updateImportProgress(0, 'Menyiapkan upload...')
+
   try {
     if (hasApi) {
       const beforeNims = new Set(alumni.value.items.map((item) => String(item.nim || '')))
-      const response = await importAlumniCsv(file)
+      const response = await importAlumniCsv(file, {
+        onUploadProgress: (eventPayload) => {
+          const total = Number(eventPayload?.total || 0)
+          const loaded = Number(eventPayload?.loaded || 0)
+          if (total <= 0) return
+          const percent = Math.round((loaded / total) * 100)
+          updateImportProgress(Math.min(99, percent), `Mengunggah file... ${percent}%`)
+        },
+      })
+
+      updateImportProgress(100, 'Upload selesai. Memproses data di server...')
+
       const summary = response?.summary || {}
       const parts = []
       if (summary.created) parts.push(`${summary.created} baru`)
@@ -511,8 +579,18 @@ const handleImportFile = async (event) => {
       if (summary.skipped && !summary.created && !summary.updated) {
         parts.push(`${summary.skipped} baris diabaikan`)
       }
-      const baseMessage = parts.length ? parts.join(' • ') : response?.message || 'Import alumni selesai.'
+      const baseMessage = parts.length ? parts.join(' ? ') : response?.message || 'Import alumni selesai.'
       message.value = baseMessage
+
+      const importId = response?.import_id
+      if (importId) {
+        const progressResult = await waitImportProgressCompletion(importId)
+        if (progressResult && String(progressResult.status || '').toLowerCase() === 'completed') {
+          const done = Number(progressResult.success_count || 0)
+          const errors = Number(progressResult.error_count || 0)
+          message.value = `Import selesai: ${done} berhasil, ${errors} gagal.`
+        }
+      }
 
       const syncResult = await syncImportedAlumni({
         beforeNims,
@@ -542,6 +620,7 @@ const handleImportFile = async (event) => {
       const imported = importLocallyFromText(text)
       message.value = `${imported} data alumni berhasil diimport.`
       error.value = ''
+      updateImportProgress(100, 'Import lokal selesai.')
     }
   } catch (e) {
     const statusCode = e?.response?.status
@@ -557,6 +636,7 @@ const handleImportFile = async (event) => {
     const fallback = detail || e?.message || 'Gagal mengimport data alumni.'
     error.value = statusCode ? `[${statusCode}] ${fallback}` : fallback
     message.value = ''
+    importStatus.value = ''
   } finally {
     importLoading.value = false
     if (importInput.value) {
@@ -569,6 +649,7 @@ const openManualImport = () => {
   importStatus.value = ''
   error.value = ''
   message.value = ''
+  updateImportProgress(0, '')
   importInput.value?.click()
 }
 
@@ -640,6 +721,7 @@ const importFromSiakad = async () => {
 
 const closeImportModal = () => {
   importModalOpen.value = false
+  updateImportProgress(0, '')
 }
 
 const openSiakadWarning = () => {
@@ -1540,6 +1622,19 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
           >
             Unduh template
           </button>
+        </div>
+
+        <div v-if="importLoading || importProgress > 0" class="mt-4">
+          <div class="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-600">
+            <span>{{ importProgressLabel || 'Memproses import...' }}</span>
+            <span>{{ Math.round(importProgress) }}%</span>
+          </div>
+          <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              class="h-full rounded-full bg-emerald-500 transition-all duration-300"
+              :style="{ width: `${Math.max(2, importProgress)}%` }"
+            ></div>
+          </div>
         </div>
 
         <p v-if="importStatus" class="mt-3 text-xs font-semibold text-slate-600">{{ importStatus }}</p>

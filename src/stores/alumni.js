@@ -326,13 +326,14 @@ export const useAlumni = () => {
     }
   }
 
-  const importAlumniCsv = async (file) => {
+  const importAlumniCsv = async (file, options = {}) => {
     if (!file) {
       throw new Error('File CSV belum dipilih.')
     }
     if (!canUseApi) {
       throw new Error('Backend tidak tersedia pada mode offline.')
     }
+    const onUploadProgress = typeof options.onUploadProgress === 'function' ? options.onUploadProgress : null
 
     const buildFormData = () => {
       const formData = new FormData()
@@ -351,6 +352,10 @@ export const useAlumni = () => {
         response = await api.post(endpoint, buildFormData(), {
           // Remove JSON default header so browser can send proper multipart boundary.
           headers: { 'Content-Type': undefined },
+          onUploadProgress: (event) => {
+            if (!onUploadProgress) return
+            onUploadProgress(event)
+          },
         })
         break
       } catch (err) {
@@ -368,8 +373,15 @@ export const useAlumni = () => {
     }
 
     clearPersisted()
-    await fetchAlumni({}, { forceRemote: true })
     return response
+  }
+
+  const getImportProgress = async (importId) => {
+    if (!importId) {
+      throw new Error('Import ID tidak tersedia.')
+    }
+
+    return alumniService.getImportProgress(importId)
   }
 
   const addAlumni = (payload) => {
@@ -518,5 +530,6 @@ export const useAlumni = () => {
     exportAlumniCsv,
     markSent,
     importAlumniCsv,
+    getImportProgress,
   }
 }
