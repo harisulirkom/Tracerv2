@@ -54,6 +54,43 @@ watch(
 )
 
 const filterOptions = computed(() => insights.value?.filters ?? { faculties: [], prodis: [], years: [], periods: [] })
+const getOptionLabel = (item) => {
+  if (item && typeof item === 'object') {
+    return item.name || item.label || item.value || item.prodi || item.programStudi || item.program_studi || ''
+  }
+  return item || ''
+}
+const getOptionFaculty = (item) => {
+  if (item && typeof item === 'object') {
+    return item.faculty || item.fakultas || ''
+  }
+  return ''
+}
+const normalizeOptions = (items = []) =>
+  [...new Set(items.map((item) => String(getOptionLabel(item)).trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  )
+const prodiByFakultas = computed(() => {
+  const raw =
+    filterOptions.value.prodiByFakultas ||
+    filterOptions.value.prodi_by_fakultas ||
+    filterOptions.value.prodisByFaculty ||
+    {}
+  return Object.fromEntries(
+    Object.entries(raw).map(([faculty, prodis]) => [faculty, normalizeOptions(Array.isArray(prodis) ? prodis : [])]),
+  )
+})
+const prodiOptions = computed(() => {
+  const selectedFaculty = String(filters.fakultas || '').trim()
+  const prodis = Array.isArray(filterOptions.value.prodis) ? filterOptions.value.prodis : []
+  if (!selectedFaculty) return normalizeOptions(prodis)
+
+  const mapped = prodiByFakultas.value[selectedFaculty]
+  if (mapped?.length) return mapped
+
+  const scoped = normalizeOptions(prodis.filter((item) => getOptionFaculty(item) === selectedFaculty))
+  return scoped.length ? scoped : normalizeOptions(prodis)
+})
 const summary = computed(() => insights.value?.summary ?? { total_alumni: 0, total_respondents: 0, response_rate: 0, status_counts: {} })
 const waitingTime = computed(() => insights.value?.waiting_time ?? { per_cohort: [], per_prodi: [], avg_wait_months: null, percent_le_3: null, percent_le_6: null, percent_gt_6: null })
 const locations = computed(() => insights.value?.locations ?? { province_heatmap: [], top_cities: [], distribution: { lokal: 0, luar_daerah: 0, luar_negeri: 0 } })
@@ -232,6 +269,20 @@ const summaryCards = computed(() => {
     { label: 'Alumni Belum Bekerja', value: counts.belum_bekerja || 0 },
   ]
 })
+
+watch(
+  () => filters.fakultas,
+  () => {
+    filters.prodi = ''
+  },
+  { flush: 'sync' },
+)
+
+watch(prodiOptions, (options) => {
+  if (filters.prodi && !options.includes(filters.prodi)) {
+    filters.prodi = ''
+  }
+})
 </script>
 
 <template>
@@ -257,7 +308,7 @@ const summaryCards = computed(() => {
           <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Prodi</span>
           <select v-model="filters.prodi" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700">
             <option value="">Semua Prodi</option>
-            <option v-for="prodi in filterOptions.prodis" :key="prodi" :value="prodi">{{ prodi }}</option>
+            <option v-for="prodi in prodiOptions" :key="prodi" :value="prodi">{{ prodi }}</option>
           </select>
         </label>
         <label class="space-y-1">

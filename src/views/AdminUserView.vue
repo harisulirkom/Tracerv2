@@ -313,6 +313,11 @@ const availableProdis = computed(() => {
   return prodis.filter((p) => p.faculty === form.faculty)
 })
 
+const filteredProdiOptions = computed(() => {
+  if (filterFaculty.value === 'all') return prodis
+  return prodis.filter((p) => p.faculty === filterFaculty.value)
+})
+
 const filteredProdiMapping = computed(() => {
   const q = prodiSearch.value.trim().toLowerCase()
   if (!q) return prodiMapping
@@ -350,6 +355,12 @@ watch(
     }
   },
 )
+
+watch(filterFaculty, () => {
+  if (filterProdi.value !== 'all' && !filteredProdiOptions.value.some((p) => p.name === filterProdi.value)) {
+    filterProdi.value = 'all'
+  }
+})
 
 watch(
   () => route.query?.tab,
@@ -602,7 +613,7 @@ const handleProfileSave = () => {
             </select>
             <select v-model="filterProdi" class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs">
               <option value="all">Prodi: semua</option>
-              <option v-for="p in prodis" :key="p.name" :value="p.name">{{ p.name }}</option>
+              <option v-for="p in filteredProdiOptions" :key="p.name" :value="p.name">{{ p.name }}</option>
             </select>
             <select v-model="filterStatus" class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs">
               <option value="all">Status: semua</option>

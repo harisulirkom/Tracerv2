@@ -99,7 +99,12 @@ const fakultasOptions = computed(() => [
 
 const prodiOptions = computed(() => [
   'all',
-  ...new Set(alumni.value.items.map((item) => item.prodi).filter(Boolean)),
+  ...new Set(
+    alumni.value.items
+      .filter((item) => fakultasFilter.value === 'all' || item.fakultas === fakultasFilter.value)
+      .map((item) => item.prodi)
+      .filter(Boolean),
+  ),
 ])
 
 const tahunOptions = computed(() =>
@@ -139,6 +144,12 @@ const paginatedAlumni = computed(() => {
 
 watch([filteredAlumni, pageSize], () => {
   currentPage.value = 1
+})
+
+watch(fakultasFilter, () => {
+  if (prodiFilter.value !== 'all' && !prodiOptions.value.includes(prodiFilter.value)) {
+    prodiFilter.value = 'all'
+  }
 })
 
 watch(currentPage, () => {

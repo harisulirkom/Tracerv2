@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:tracerv2": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",

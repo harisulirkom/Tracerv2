@@ -19,7 +19,7 @@ export const messages = {
         home: 'Home',
         profile: 'Profil',
         services: 'Layanan',
-        jobs: 'Lowongan Kerja',
+        jobs: 'Karir',
         surveyList: 'Daftar Kuisioner',
         articles: 'Artikel & Tips',
         news: 'Berita',
