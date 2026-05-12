@@ -791,6 +791,7 @@ const startImportUpload = async () => {
   try {
     let review = null
     let failedReportUrl = ''
+    let autoFixedFromServer = 0
     const kind = detectImportFileKind(sourceFile)
     if (kind === 'csv') {
       const normalized = await normalizeImportCsvFile(sourceFile)
@@ -837,6 +838,7 @@ const startImportUpload = async () => {
         if (progressResult && String(progressResult.status || '').toLowerCase() === 'completed') {
           const done = Number(progressResult.success_count || 0)
           const errors = Number(progressResult.error_count || 0)
+          autoFixedFromServer = Number(progressResult.auto_fixed_email_count || 0)
           const processed = Number(progressResult.processed_rows || done + errors || 0)
           failedReportUrl =
             progressResult.failed_report_url ||
@@ -850,6 +852,7 @@ const startImportUpload = async () => {
         }
       } else {
         const processed = Number(initialSummary.processed_rows || doneFromResponse + failFromResponse || 0)
+        autoFixedFromServer = Number(initialSummary.auto_fixed_email_count || 0)
         failedReportUrl =
           initialSummary.failed_report_url ||
           (failFromResponse > 0 && importId ? `/api/admin/alumni/import-report/${encodeURIComponent(importId)}` : '')
@@ -884,6 +887,10 @@ const startImportUpload = async () => {
         error.value = summaryErrors.map((item) => item.message).join('; ')
       } else {
         error.value = ''
+      }
+
+      if (autoFixedFromServer > 0) {
+        normalizedEmailCount.value = Math.max(normalizedEmailCount.value, autoFixedFromServer)
       }
 
       if (!review || (!review.total && !review.processed && !review.success && !review.failed)) {

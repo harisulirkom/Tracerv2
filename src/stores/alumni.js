@@ -5,8 +5,7 @@ import { API_TIMEOUT_MS } from '@/services/requestTimeout'
 
 const STORAGE_KEY = 'tracer_admin_alumni'
 const TOKEN_STORAGE_KEY = 'tracer_auth_token'
-const API_URL = import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE_API_BASE_URL}/alumni` : null
-const canUseApi = !!import.meta.env.VITE_API_BASE_URL
+const canUseApi = String(import.meta.env.VITE_DISABLE_API || '').toLowerCase() !== 'true'
 const DEFAULT_PER_PAGE = 'all'
 
 const defaultAlumni = [
@@ -306,7 +305,15 @@ export const useAlumni = () => {
         state.error = 'Sesi berakhir atau token tidak valid. Silakan login ulang.'
         clearPersisted()
       } else {
-        state.error = err?.message || 'Gagal memuat data alumni.'
+        const serverMessage = err?.response?.data?.message
+        const validation = err?.response?.data?.errors
+        let detail = serverMessage
+        if (!detail && validation && typeof validation === 'object') {
+          detail = Object.entries(validation)
+            .map(([field, value]) => `${field}: ${Array.isArray(value) ? value.join(', ') : value}`)
+            .join('; ')
+        }
+        state.error = detail || err?.message || 'Gagal memuat data alumni.'
       }
 
       if (!state.items.length) {

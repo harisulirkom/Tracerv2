@@ -1,7 +1,25 @@
 import axios from 'axios'
 import { API_TIMEOUT_MS, buildTimeoutMessage, isTimeoutError } from './requestTimeout'
 
-const baseURL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+const configuredBaseURL = String(import.meta.env.VITE_API_BASE_URL || '').trim()
+const hostname = typeof window !== 'undefined' ? String(window.location?.hostname || '') : ''
+const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1'
+
+const resolveBaseURL = () => {
+  const fallback = '/api'
+  if (!configuredBaseURL) return fallback
+
+  const normalized = configuredBaseURL.replace(/\/$/, '')
+
+  // Legacy local setup often points to old path and bypasses Vite proxy.
+  if (import.meta.env.DEV && isLocalHost && normalized.includes('/ModulCDC/public/api')) {
+    return fallback
+  }
+
+  return normalized
+}
+
+const baseURL = resolveBaseURL()
 
 let authToken = null
 let unauthorizedHandler = null
