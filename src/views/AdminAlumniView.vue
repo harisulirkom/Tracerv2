@@ -815,20 +815,21 @@ const startImportUpload = async () => {
           updateImportProgress(Math.min(99, percent), `Mengunggah file... ${percent}%`)
         },
       })
-      if (response?.preflight || response?.data?.preflight) {
-        importPreview.value = response?.preflight || response?.data?.preflight
+      const payload = response?.data || response || {}
+      if (payload?.preflight) {
+        importPreview.value = payload.preflight
       }
 
       updateImportProgress(100, 'Upload selesai. Memproses data di server...')
 
-      if (!response?.import_id) {
+      if (!payload?.import_id) {
         throw new Error(
           'Respons backend tidak menyertakan import_id. Endpoint import belum versi terbaru. Jalankan update backend, clear cache, dan restart service.',
         )
       }
 
-      const importId = response?.import_id
-      const initialSummary = response?.summary || {}
+      const importId = payload.import_id
+      const initialSummary = payload.summary || {}
       const totalFromResponse = Number(initialSummary.total_rows || 0)
       const doneFromResponse = Number(initialSummary.success_count || 0)
       const failFromResponse = Number(initialSummary.error_count || 0)
@@ -866,7 +867,7 @@ const startImportUpload = async () => {
 
       const syncResult = await syncImportedAlumni({
         beforeNims,
-        jobStatus: response?.job_status,
+        jobStatus: payload?.job_status,
       })
 
       if (syncResult.synced) {
