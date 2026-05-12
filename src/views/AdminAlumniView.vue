@@ -35,6 +35,7 @@ const selectedImportFile = ref(null)
 const selectedImportFileName = ref('')
 const selectedImportFileRows = ref(0)
 const importReview = ref(null)
+const normalizedEmailCount = ref(0)
 const importModalOpen = ref(false)
 const importInput = ref(null)
 const showDetailModal = ref(false)
@@ -494,6 +495,7 @@ const resetImportState = () => {
   selectedImportFileName.value = ''
   selectedImportFileRows.value = 0
   importReview.value = null
+  normalizedEmailCount.value = 0
   updateImportProgress(0, '')
 }
 
@@ -507,6 +509,135 @@ const estimateCsvRows = async (file) => {
   }
 }
 
+const parseCsvText = (text) => {
+  const rows = []
+  let row = []
+  let field = ''
+  let inQuotes = false
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+    const next = text[i + 1]
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') {
+        field += '"'
+        i += 1
+      } else if (ch === '"') {
+        inQuotes = false
+      } else {
+        field += ch
+      }
+      continue
+    }
+
+    if (ch === '"') {
+      inQuotes = true
+      continue
+    }
+
+    if (ch === ',') {
+      row.push(field)
+      field = ''
+      continue
+    }
+
+    if (ch === '\n') {
+      row.push(field)
+      rows.push(row)
+      row = []
+      field = ''
+      continue
+    }
+
+    if (ch !== '\r') {
+      field += ch
+    }
+  }
+
+  row.push(field)
+  rows.push(row)
+
+  return rows.filter((r) => r.some((value) => String(value || '').trim() !== ''))
+}
+
+const toCsvText = (rows) =>
+  rows
+    .map((row) =>
+      row
+        .map((value) => {
+          const text = String(value ?? '')
+          if (/[",\n\r]/.test(text)) {
+            return `"${text.replace(/"/g, '""')}"`
+          }
+          return text
+        })
+        .join(','),
+    )
+    .join('\n')
+
+const normalizeImportCsvFile = async (file) => {
+  const raw = await file.text()
+  const rows = parseCsvText(raw)
+  if (rows.length < 2) {
+    return { file, normalized: false, replacedEmails: 0 }
+  }
+
+  const headers = rows[0].map((h) => String(h || '').trim().toLowerCase().replace(/\s+/g, '_'))
+  const nimIndex = headers.findIndex((h) => h === 'nim')
+  const emailIndex = headers.findIndex((h) => h === 'email' || h === 'email_address' || h === 'mail')
+  if (nimIndex < 0 || emailIndex < 0) {
+    return { file, normalized: false, replacedEmails: 0 }
+  }
+
+  const emailOwner = new Map()
+  const emailCount = new Map()
+  let replacedEmails = 0
+
+  for (let i = 1; i < rows.length; i += 1) {
+    const row = rows[i]
+    const email = String(row[emailIndex] || '').trim().toLowerCase()
+    if (!email) continue
+    emailCount.set(email, Number(emailCount.get(email) || 0) + 1)
+  }
+
+  for (let i = 1; i < rows.length; i += 1) {
+    const row = rows[i]
+    const nim = String(row[nimIndex] || '').trim()
+    if (!nim) continue
+    const rawEmail = String(row[emailIndex] || '').trim().toLowerCase()
+    const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+    const isRepeatedEmail = Number(emailCount.get(rawEmail) || 0) > 1
+    const owner = rawEmail ? emailOwner.get(rawEmail) : null
+
+    let nextEmail = rawEmail
+    if (!isEmailValid || isRepeatedEmail || (owner && owner !== nim)) {
+      const nimBase = nim.toLowerCase().replace(/[^a-z0-9]/g, '') || `alumni${i}`
+      nextEmail = `${nimBase}@import.local`
+      if (emailOwner.has(nextEmail) && emailOwner.get(nextEmail) !== nim) {
+        nextEmail = `${nimBase}+${i}@import.local`
+      }
+      replacedEmails += 1
+    }
+
+    row[emailIndex] = nextEmail
+    emailOwner.set(nextEmail, nim)
+  }
+
+  if (!replacedEmails) {
+    return { file, normalized: false, replacedEmails: 0 }
+  }
+
+  const normalizedText = toCsvText(rows)
+  const normalizedBlob = new Blob(['\uFEFF', normalizedText], { type: 'text/csv;charset=utf-8;' })
+  const normalizedFile = new File([normalizedBlob], file.name, { type: 'text/csv;charset=utf-8;' })
+  return {
+    file: normalizedFile,
+    normalized: true,
+    replacedEmails,
+  }
+}
+
 const onImportFileSelected = async (event) => {
   const file = event.target?.files?.[0]
   if (!file) return
@@ -517,6 +648,7 @@ const onImportFileSelected = async (event) => {
   message.value = ''
   error.value = ''
   importReview.value = null
+  normalizedEmailCount.value = 0
   const rowLabel = selectedImportFileRows.value > 0 ? ` (${selectedImportFileRows.value} baris terdeteksi)` : ''
   updateImportProgress(0, `Siap upload${rowLabel}.`)
 }
@@ -584,17 +716,26 @@ const syncImportedAlumni = async ({ beforeNims, jobStatus }) => {
 }
 
 const startImportUpload = async () => {
-  const file = selectedImportFile.value
+  const sourceFile = selectedImportFile.value
+  let file = sourceFile
   if (!file) return
   importLoading.value = true
   message.value = ''
   error.value = ''
   importReview.value = null
+  normalizedEmailCount.value = 0
   importStatus.value = 'Memulai upload file...'
   updateImportProgress(0, 'Menyiapkan upload...')
 
   try {
     let review = null
+    const normalized = await normalizeImportCsvFile(sourceFile)
+    file = normalized.file
+    normalizedEmailCount.value = Number(normalized.replacedEmails || 0)
+    if (normalized.normalized && normalized.replacedEmails > 0) {
+      importStatus.value = `File dinormalisasi: ${normalized.replacedEmails} email duplikat/tidak valid diperbaiki otomatis.`
+      updateImportProgress(2, 'File dinormalisasi. Menyiapkan upload...')
+    }
 
     if (hasApi) {
       const beforeNims = new Set(alumni.value.items.map((item) => String(item.nim || '')))
@@ -1743,8 +1884,9 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
           <p>Diproses: {{ importReview.processed }}</p>
           <p>Berhasil: {{ importReview.success }}</p>
           <p>Gagal: {{ importReview.failed }}</p>
+          <p v-if="normalizedEmailCount > 0">Email diperbaiki otomatis: {{ normalizedEmailCount }}</p>
           <p v-if="importReview.estimated" class="mt-1 text-[11px] text-emerald-700">
-            Ringkasan ini estimasi karena backend belum mengirim summary final.
+            Ringkasan ditampilkan berdasarkan sinkronisasi data terakhir. Silakan klik tombol di bawah untuk memuat tampilan terbaru.
           </p>
           <button
             type="button"
