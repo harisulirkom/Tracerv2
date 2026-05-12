@@ -31,6 +31,9 @@ const importLoading = ref(false)
 const importStatus = ref('')
 const importProgress = ref(0)
 const importProgressLabel = ref('')
+const selectedImportFile = ref(null)
+const selectedImportFileName = ref('')
+const importReview = ref(null)
 const importModalOpen = ref(false)
 const importInput = ref(null)
 const showDetailModal = ref(false)
@@ -412,8 +415,7 @@ const handleImportClick = () => {
   message.value = ''
   error.value = ''
   importStatus.value = ''
-  importProgress.value = 0
-  importProgressLabel.value = ''
+  resetImportState()
   importModalOpen.value = true
 }
 
@@ -486,6 +488,25 @@ const updateImportProgress = (percent, label = '') => {
   importProgressLabel.value = label
 }
 
+const resetImportState = () => {
+  selectedImportFile.value = null
+  selectedImportFileName.value = ''
+  importReview.value = null
+  updateImportProgress(0, '')
+}
+
+const onImportFileSelected = (event) => {
+  const file = event.target?.files?.[0]
+  if (!file) return
+  selectedImportFile.value = file
+  selectedImportFileName.value = file.name
+  importStatus.value = 'File dipilih. Klik "Upload ke sistem" untuk memulai import.'
+  message.value = ''
+  error.value = ''
+  importReview.value = null
+  updateImportProgress(0, 'Siap upload.')
+}
+
 const waitImportProgressCompletion = async (importId) => {
   if (!importId) {
     return null
@@ -548,16 +569,19 @@ const syncImportedAlumni = async ({ beforeNims, jobStatus }) => {
   return { synced: false, hasNewData: false }
 }
 
-const handleImportFile = async (event) => {
-  const file = event.target?.files?.[0]
+const startImportUpload = async () => {
+  const file = selectedImportFile.value
   if (!file) return
   importLoading.value = true
   message.value = ''
   error.value = ''
-  importStatus.value = ''
+  importReview.value = null
+  importStatus.value = 'Memulai upload file...'
   updateImportProgress(0, 'Menyiapkan upload...')
 
   try {
+    let review = null
+
     if (hasApi) {
       const beforeNims = new Set(alumni.value.items.map((item) => String(item.nim || '')))
       const response = await importAlumniCsv(file, {
@@ -572,23 +596,32 @@ const handleImportFile = async (event) => {
 
       updateImportProgress(100, 'Upload selesai. Memproses data di server...')
 
-      const summary = response?.summary || {}
-      const parts = []
-      if (summary.created) parts.push(`${summary.created} baru`)
-      if (summary.updated) parts.push(`${summary.updated} diperbarui`)
-      if (summary.skipped && !summary.created && !summary.updated) {
-        parts.push(`${summary.skipped} baris diabaikan`)
-      }
-      const baseMessage = parts.length ? parts.join(' ? ') : response?.message || 'Import alumni selesai.'
-      message.value = baseMessage
-
       const importId = response?.import_id
+      const initialSummary = response?.summary || {}
+      const totalFromResponse = Number(initialSummary.total_rows || 0)
+      const doneFromResponse = Number(initialSummary.success_count || 0)
+      const failFromResponse = Number(initialSummary.error_count || 0)
+
       if (importId) {
         const progressResult = await waitImportProgressCompletion(importId)
         if (progressResult && String(progressResult.status || '').toLowerCase() === 'completed') {
           const done = Number(progressResult.success_count || 0)
           const errors = Number(progressResult.error_count || 0)
-          message.value = `Import selesai: ${done} berhasil, ${errors} gagal.`
+          const processed = Number(progressResult.processed_rows || done + errors || 0)
+          review = {
+            total: Number(progressResult.total_rows || processed || 0),
+            processed,
+            success: done,
+            failed: errors,
+          }
+        }
+      } else {
+        const processed = Number(initialSummary.processed_rows || doneFromResponse + failFromResponse || 0)
+        review = {
+          total: totalFromResponse || processed,
+          processed,
+          success: doneFromResponse,
+          failed: failFromResponse,
         }
       }
 
@@ -610,17 +643,30 @@ const handleImportFile = async (event) => {
         importStatus.value = 'Import berjalan di background. Data akan muncul setelah proses queue selesai.'
       }
 
-      if (summary.errors?.length) {
-        error.value = summary.errors.map((item) => item.message).join('; ')
+      const summaryErrors = initialSummary.errors
+      if (summaryErrors?.length) {
+        error.value = summaryErrors.map((item) => item.message).join('; ')
       } else {
         error.value = ''
       }
     } else {
       const text = await file.text()
       const imported = importLocallyFromText(text)
-      message.value = `${imported} data alumni berhasil diimport.`
       error.value = ''
       updateImportProgress(100, 'Import lokal selesai.')
+      review = {
+        total: imported,
+        processed: imported,
+        success: imported,
+        failed: 0,
+      }
+    }
+
+    if (review) {
+      importReview.value = review
+      message.value = `Review import: ${review.success} berhasil, ${review.failed} gagal.`
+    } else {
+      message.value = 'Import selesai diproses.'
     }
   } catch (e) {
     const statusCode = e?.response?.status
@@ -639,9 +685,6 @@ const handleImportFile = async (event) => {
     importStatus.value = ''
   } finally {
     importLoading.value = false
-    if (importInput.value) {
-      importInput.value.value = ''
-    }
   }
 }
 
@@ -649,7 +692,13 @@ const openManualImport = () => {
   importStatus.value = ''
   error.value = ''
   message.value = ''
-  updateImportProgress(0, '')
+  importReview.value = null
+  selectedImportFile.value = null
+  selectedImportFileName.value = ''
+  updateImportProgress(0, 'Pilih file CSV untuk diupload.')
+  if (importInput.value) {
+    importInput.value.value = ''
+  }
   importInput.value?.click()
 }
 
@@ -721,7 +770,13 @@ const importFromSiakad = async () => {
 
 const closeImportModal = () => {
   importModalOpen.value = false
-  updateImportProgress(0, '')
+  resetImportState()
+}
+
+const confirmImportReview = async () => {
+  importStatus.value = 'Menyegarkan halaman...'
+  await fetchAlumni({}, { forceRemote: true })
+  window.location.reload()
 }
 
 const openSiakadWarning = () => {
@@ -1551,7 +1606,7 @@ const showingRange = computed(() => {
             type="file"
             accept=".csv,.txt"
             class="hidden"
-            @change="handleImportFile"
+            @change="onImportFileSelected"
           />
           <p v-if="importLoading" class="mt-2 text-xs font-semibold text-slate-500">Mengimpor data...</p>
       </section>
@@ -1612,7 +1667,15 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
             :disabled="importLoading"
             @click="openManualImport"
           >
-            Impor CSV manual
+            Pilih file CSV
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="importLoading || !selectedImportFile"
+            @click="startImportUpload"
+          >
+            {{ importLoading ? 'Uploading...' : 'Upload ke sistem' }}
           </button>
           <button
             type="button"
@@ -1623,6 +1686,10 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
             Unduh template
           </button>
         </div>
+
+        <p v-if="selectedImportFileName" class="mt-2 text-xs font-semibold text-slate-600">
+          File terpilih: {{ selectedImportFileName }}
+        </p>
 
         <div v-if="importLoading || importProgress > 0" class="mt-4">
           <div class="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-600">
@@ -1638,6 +1705,20 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
         </div>
 
         <p v-if="importStatus" class="mt-3 text-xs font-semibold text-slate-600">{{ importStatus }}</p>
+        <div v-if="importReview" class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-900">
+          <p class="font-semibold">Review hasil upload:</p>
+          <p>Total data: {{ importReview.total }}</p>
+          <p>Diproses: {{ importReview.processed }}</p>
+          <p>Berhasil: {{ importReview.success }}</p>
+          <p>Gagal: {{ importReview.failed }}</p>
+          <button
+            type="button"
+            class="mt-3 inline-flex items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            @click="confirmImportReview"
+          >
+            OK & Reload Halaman
+          </button>
+        </div>
         <p v-if="message" class="text-xs font-semibold text-emerald-600">{{ message }}</p>
         <p v-if="error" class="text-xs font-semibold text-rose-600">{{ error }}</p>
       </div>
