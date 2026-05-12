@@ -14,7 +14,17 @@ import {
 } from '../services/alumniBlastService'
 
 const router = useRouter()
-const { alumni, fetchAlumni, addAlumni, updateAlumni, exportAlumniCsv, markSent, importAlumniCsv, getImportProgress } = useAlumni()
+const {
+  alumni,
+  fetchAlumni,
+  addAlumni,
+  updateAlumni,
+  exportAlumniCsv,
+  markSent,
+  importAlumniCsv,
+  previewImportFile,
+  getImportProgress,
+} = useAlumni()
 const auth = useAuth()
 const { permissions } = useUserManagement()
 const defaultAvatar = 'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=240&q=60'
@@ -36,6 +46,10 @@ const selectedImportFileName = ref('')
 const selectedImportFileRows = ref(0)
 const importReview = ref(null)
 const normalizedEmailCount = ref(0)
+const importFailedReportUrl = ref('')
+const importMode = ref('smart')
+const importPreview = ref(null)
+const importPreviewLoading = ref(false)
 const importModalOpen = ref(false)
 const importInput = ref(null)
 const showDetailModal = ref(false)
@@ -496,16 +510,50 @@ const resetImportState = () => {
   selectedImportFileRows.value = 0
   importReview.value = null
   normalizedEmailCount.value = 0
+  importFailedReportUrl.value = ''
+  importPreview.value = null
+  importPreviewLoading.value = false
+  importMode.value = 'smart'
   updateImportProgress(0, '')
 }
 
+const detectImportFileKind = (file) => {
+  const name = String(file?.name || '').toLowerCase()
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) return 'xlsx'
+  return 'csv'
+}
+
 const estimateCsvRows = async (file) => {
+  if (detectImportFileKind(file) === 'xlsx') {
+    return 0
+  }
   try {
     const text = await file.text()
     const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '')
     return Math.max(0, lines.length - 1)
   } catch (e) {
     return 0
+  }
+}
+
+const runImportPreflight = async (file) => {
+  if (!hasApi || !file) {
+    importPreview.value = null
+    return
+  }
+
+  importPreviewLoading.value = true
+  try {
+    const resp = await previewImportFile(file, { mode: importMode.value })
+    const preview = resp?.preview || resp?.data?.preview || null
+    importPreview.value = preview
+    if (preview?.total_rows > 0) {
+      selectedImportFileRows.value = Number(preview.total_rows || 0)
+    }
+  } catch (e) {
+    importPreview.value = null
+  } finally {
+    importPreviewLoading.value = false
   }
 }
 
@@ -649,9 +697,17 @@ const onImportFileSelected = async (event) => {
   error.value = ''
   importReview.value = null
   normalizedEmailCount.value = 0
+  importFailedReportUrl.value = ''
+  importPreview.value = null
   const rowLabel = selectedImportFileRows.value > 0 ? ` (${selectedImportFileRows.value} baris terdeteksi)` : ''
   updateImportProgress(0, `Siap upload${rowLabel}.`)
+  await runImportPreflight(file)
 }
+
+watch(importMode, async () => {
+  if (!selectedImportFile.value || importLoading.value) return
+  await runImportPreflight(selectedImportFile.value)
+})
 
 const waitImportProgressCompletion = async (importId) => {
   if (!importId) {
@@ -724,22 +780,28 @@ const startImportUpload = async () => {
   error.value = ''
   importReview.value = null
   normalizedEmailCount.value = 0
+  importFailedReportUrl.value = ''
   importStatus.value = 'Memulai upload file...'
   updateImportProgress(0, 'Menyiapkan upload...')
 
   try {
     let review = null
-    const normalized = await normalizeImportCsvFile(sourceFile)
-    file = normalized.file
-    normalizedEmailCount.value = Number(normalized.replacedEmails || 0)
-    if (normalized.normalized && normalized.replacedEmails > 0) {
-      importStatus.value = `File dinormalisasi: ${normalized.replacedEmails} email duplikat/tidak valid diperbaiki otomatis.`
-      updateImportProgress(2, 'File dinormalisasi. Menyiapkan upload...')
+    let failedReportUrl = ''
+    const kind = detectImportFileKind(sourceFile)
+    if (kind === 'csv') {
+      const normalized = await normalizeImportCsvFile(sourceFile)
+      file = normalized.file
+      normalizedEmailCount.value = Number(normalized.replacedEmails || 0)
+      if (normalized.normalized && normalized.replacedEmails > 0) {
+        importStatus.value = `File dinormalisasi: ${normalized.replacedEmails} email duplikat/tidak valid diperbaiki otomatis.`
+        updateImportProgress(2, 'File dinormalisasi. Menyiapkan upload...')
+      }
     }
 
     if (hasApi) {
       const beforeNims = new Set(alumni.value.items.map((item) => String(item.nim || '')))
       const response = await importAlumniCsv(file, {
+        mode: importMode.value,
         onUploadProgress: (eventPayload) => {
           const total = Number(eventPayload?.total || 0)
           const loaded = Number(eventPayload?.loaded || 0)
@@ -748,6 +810,9 @@ const startImportUpload = async () => {
           updateImportProgress(Math.min(99, percent), `Mengunggah file... ${percent}%`)
         },
       })
+      if (response?.preflight || response?.data?.preflight) {
+        importPreview.value = response?.preflight || response?.data?.preflight
+      }
 
       updateImportProgress(100, 'Upload selesai. Memproses data di server...')
 
@@ -763,6 +828,9 @@ const startImportUpload = async () => {
           const done = Number(progressResult.success_count || 0)
           const errors = Number(progressResult.error_count || 0)
           const processed = Number(progressResult.processed_rows || done + errors || 0)
+          failedReportUrl =
+            progressResult.failed_report_url ||
+            (errors > 0 ? `/api/admin/alumni/import-report/${encodeURIComponent(importId)}` : '')
           review = {
             total: Number(progressResult.total_rows || processed || 0),
             processed,
@@ -772,6 +840,9 @@ const startImportUpload = async () => {
         }
       } else {
         const processed = Number(initialSummary.processed_rows || doneFromResponse + failFromResponse || 0)
+        failedReportUrl =
+          initialSummary.failed_report_url ||
+          (failFromResponse > 0 && importId ? `/api/admin/alumni/import-report/${encodeURIComponent(importId)}` : '')
         review = {
           total: totalFromResponse || processed,
           processed,
@@ -834,6 +905,7 @@ const startImportUpload = async () => {
 
     if (review) {
       importReview.value = review
+      importFailedReportUrl.value = failedReportUrl
       message.value = `Review import: ${review.success} berhasil, ${review.failed} gagal.`
     } else {
       message.value = 'Import selesai diproses.'
@@ -853,6 +925,7 @@ const startImportUpload = async () => {
     error.value = statusCode ? `[${statusCode}] ${fallback}` : fallback
     message.value = ''
     importStatus.value = ''
+    importFailedReportUrl.value = ''
   } finally {
     importLoading.value = false
   }
@@ -863,6 +936,8 @@ const openManualImport = () => {
   error.value = ''
   message.value = ''
   importReview.value = null
+  importPreview.value = null
+  normalizedEmailCount.value = 0
   selectedImportFile.value = null
   selectedImportFileName.value = ''
   selectedImportFileRows.value = 0
@@ -1775,7 +1850,7 @@ const showingRange = computed(() => {
           <input
             ref="importInput"
             type="file"
-            accept=".csv,.txt"
+            accept=".csv,.txt,.xlsx"
             class="hidden"
             @change="onImportFileSelected"
           />
@@ -1807,7 +1882,7 @@ const showingRange = computed(() => {
 
         <div class="mt-3 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 text-xs text-slate-700">
           <p>Ketika API siap, alur ini akan memanggil endpoint SIAKAD untuk menarik data lulusan terbaru.</p>
-          <p>Untuk sekarang, gunakan simulasi atau unggah CSV manual agar tabel tetap terisi.</p>
+          <p>Untuk sekarang, gunakan simulasi atau unggah CSV/XLSX manual agar tabel tetap terisi.</p>
           <details class="space-y-2 rounded-2xl bg-white/60 p-3 text-xs">
             <summary class="cursor-pointer font-semibold text-slate-800">Lihat format CSV & contoh data</summary>
             <p class="font-semibold text-slate-800">Format CSV (baris pertama wajib header):</p>
@@ -1839,7 +1914,7 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
             :disabled="importLoading"
             @click="openManualImport"
           >
-            Pilih file CSV
+            Pilih file CSV/XLSX
           </button>
           <button
             type="button"
@@ -1859,10 +1934,44 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
           </button>
         </div>
 
+        <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <label class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Mode import
+          </label>
+          <select
+            v-model="importMode"
+            :disabled="importLoading"
+            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+          >
+            <option value="smart">Smart (otomatis perbaiki format umum)</option>
+            <option value="strict">Strict (validasi ketat, gagal jika format salah)</option>
+          </select>
+        </div>
+
         <p v-if="selectedImportFileName" class="mt-2 text-xs font-semibold text-slate-600">
           File terpilih: {{ selectedImportFileName }}
           <span v-if="selectedImportFileRows > 0">({{ selectedImportFileRows }} baris)</span>
         </p>
+
+        <div v-if="importPreviewLoading" class="mt-2 text-xs text-slate-500">Memvalidasi format file...</div>
+        <div v-else-if="importPreview" class="mt-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
+          <p class="font-semibold text-slate-900">Preview validasi:</p>
+          <p>Format file: {{ String(importPreview.format || '-').toUpperCase() }}</p>
+          <p v-if="importPreview.format === 'csv'">Pemisah terdeteksi: {{ importPreview.delimiter || ',' }}</p>
+          <p v-if="importPreview.encoding">Encoding: {{ importPreview.encoding }}</p>
+          <p>Total baris data: {{ importPreview.total_rows || 0 }}</p>
+          <p>Baris valid: {{ importPreview.valid_rows || 0 }}</p>
+          <p>Baris perlu perhatian: {{ importPreview.invalid_rows || 0 }}</p>
+          <p v-if="(importPreview.missing_required_headers || []).length" class="font-semibold text-rose-600">
+            Header wajib belum lengkap: {{ (importPreview.missing_required_headers || []).join(', ') }}
+          </p>
+          <p
+            v-if="(importPreview.errors || []).length"
+            class="mt-1 text-[11px] text-amber-700"
+          >
+            Catatan validasi tersedia pada {{ Math.min((importPreview.errors || []).length, 200) }} baris pertama bermasalah.
+          </p>
+        </div>
 
         <div v-if="importLoading || importProgress > 0" class="mt-4">
           <div class="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-600">
@@ -1885,6 +1994,15 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
           <p>Berhasil: {{ importReview.success }}</p>
           <p>Gagal: {{ importReview.failed }}</p>
           <p v-if="normalizedEmailCount > 0">Email diperbaiki otomatis: {{ normalizedEmailCount }}</p>
+          <a
+            v-if="importFailedReportUrl && importReview.failed > 0"
+            :href="importFailedReportUrl"
+            target="_blank"
+            rel="noopener"
+            class="mt-2 inline-flex items-center justify-center rounded-full border border-emerald-300 bg-white px-3 py-1 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100"
+          >
+            Unduh daftar gagal
+          </a>
           <p v-if="importReview.estimated" class="mt-1 text-[11px] text-emerald-700">
             Ringkasan ditampilkan berdasarkan sinkronisasi data terakhir. Silakan klik tombol di bawah untuk memuat tampilan terbaru.
           </p>

@@ -3,6 +3,7 @@ import { get, post, put } from './api'
 export const getAlumni = (params = {}, config = {}) => get('/admin/alumni', { params, ...config })
 export const getAlumniById = (id) => get(`/alumni/${id}`)
 export const getImportProgress = (importId) => get(`/admin/alumni/import-progress/${encodeURIComponent(importId)}`)
+export const previewImport = (payload, config = {}) => post('/admin/alumni/import-preview', payload, config)
 export const updateAlumni = async (id, payload = {}) => {
   const endpoints = [`/admin/alumni/${id}`, `/alumni/${id}`]
   let lastError = null
@@ -86,6 +87,7 @@ export default {
   getAlumni,
   getAlumniById,
   getImportProgress,
+  previewImport,
   updateAlumni,
   searchAlumni,
   searchAlumniByNim,

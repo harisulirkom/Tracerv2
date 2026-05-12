@@ -328,18 +328,20 @@ export const useAlumni = () => {
 
   const importAlumniCsv = async (file, options = {}) => {
     if (!file) {
-      throw new Error('File CSV belum dipilih.')
+      throw new Error('File import belum dipilih.')
     }
     if (!canUseApi) {
       throw new Error('Backend tidak tersedia pada mode offline.')
     }
     const onUploadProgress = typeof options.onUploadProgress === 'function' ? options.onUploadProgress : null
+    const mode = options.mode === 'strict' ? 'strict' : 'smart'
 
     const buildFormData = () => {
       const formData = new FormData()
       // Backward compatibility: some backend versions use `file`, others `alumni_csv`.
       formData.append('file', file, file.name)
       formData.append('alumni_csv', file, file.name)
+      formData.append('mode', mode)
       return formData
     }
 
@@ -374,6 +376,40 @@ export const useAlumni = () => {
 
     clearPersisted()
     return response
+  }
+
+  const previewImportFile = async (file, options = {}) => {
+    if (!file) {
+      throw new Error('File import belum dipilih.')
+    }
+    if (!canUseApi) {
+      throw new Error('Backend tidak tersedia pada mode offline.')
+    }
+
+    const mode = options.mode === 'strict' ? 'strict' : 'smart'
+    const formData = new FormData()
+    formData.append('file', file, file.name)
+    formData.append('alumni_csv', file, file.name)
+    formData.append('mode', mode)
+
+    const endpoints = ['/admin/alumni/import-preview', '/alumni/import-preview']
+    let lastError = null
+
+    for (const endpoint of endpoints) {
+      try {
+        return await api.post(endpoint, formData, {
+          headers: { 'Content-Type': undefined },
+        })
+      } catch (err) {
+        lastError = err
+        const status = err?.response?.status
+        if (status !== 404 && status !== 405) {
+          throw err
+        }
+      }
+    }
+
+    throw lastError || new Error('Endpoint preview import tidak ditemukan di server.')
   }
 
   const getImportProgress = async (importId) => {
@@ -530,6 +566,7 @@ export const useAlumni = () => {
     exportAlumniCsv,
     markSent,
     importAlumniCsv,
+    previewImportFile,
     getImportProgress,
   }
 }
