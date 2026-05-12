@@ -559,8 +559,7 @@ export const useQuestionnaires = () => {
     }
   }
 
-  const fetchQuestions = async (questionnaireId) => {
-    const options = arguments[1] || {}
+  const fetchQuestions = async (questionnaireId, options = {}) => {
     const requestConfig = options?.requestConfig || {}
     const silent = Boolean(options?.silent)
     if (!questionnaireId) return []
