@@ -345,7 +345,7 @@ export const useAlumni = () => {
       return formData
     }
 
-    const endpoints = ['/admin/alumni/import', '/alumni/import', '/import-alumni']
+    const endpoints = ['/admin/alumni/import']
     let lastError = null
     let response = null
 
@@ -392,7 +392,7 @@ export const useAlumni = () => {
     formData.append('alumni_csv', file, file.name)
     formData.append('mode', mode)
 
-    const endpoints = ['/admin/alumni/import-preview', '/alumni/import-preview']
+    const endpoints = ['/admin/alumni/import-preview']
     let lastError = null
 
     for (const endpoint of endpoints) {

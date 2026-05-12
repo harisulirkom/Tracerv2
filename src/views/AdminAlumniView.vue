@@ -552,6 +552,10 @@ const runImportPreflight = async (file) => {
     }
   } catch (e) {
     importPreview.value = null
+    const status = e?.response?.status
+    if (status === 404 || status === 405) {
+      error.value = 'Fitur preview belum tersedia di backend server ini. Silakan update backend ke versi terbaru.'
+    }
   } finally {
     importPreviewLoading.value = false
   }
@@ -815,6 +819,12 @@ const startImportUpload = async () => {
       }
 
       updateImportProgress(100, 'Upload selesai. Memproses data di server...')
+
+      if (!response?.import_id) {
+        throw new Error(
+          'Respons backend tidak menyertakan import_id. Endpoint import belum versi terbaru. Jalankan update backend, clear cache, dan restart service.',
+        )
+      }
 
       const importId = response?.import_id
       const initialSummary = response?.summary || {}
