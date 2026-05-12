@@ -33,6 +33,7 @@ const importProgress = ref(0)
 const importProgressLabel = ref('')
 const selectedImportFile = ref(null)
 const selectedImportFileName = ref('')
+const selectedImportFileRows = ref(0)
 const importReview = ref(null)
 const importModalOpen = ref(false)
 const importInput = ref(null)
@@ -491,20 +492,33 @@ const updateImportProgress = (percent, label = '') => {
 const resetImportState = () => {
   selectedImportFile.value = null
   selectedImportFileName.value = ''
+  selectedImportFileRows.value = 0
   importReview.value = null
   updateImportProgress(0, '')
 }
 
-const onImportFileSelected = (event) => {
+const estimateCsvRows = async (file) => {
+  try {
+    const text = await file.text()
+    const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '')
+    return Math.max(0, lines.length - 1)
+  } catch (e) {
+    return 0
+  }
+}
+
+const onImportFileSelected = async (event) => {
   const file = event.target?.files?.[0]
   if (!file) return
   selectedImportFile.value = file
   selectedImportFileName.value = file.name
+  selectedImportFileRows.value = await estimateCsvRows(file)
   importStatus.value = 'File dipilih. Klik "Upload ke sistem" untuk memulai import.'
   message.value = ''
   error.value = ''
   importReview.value = null
-  updateImportProgress(0, 'Siap upload.')
+  const rowLabel = selectedImportFileRows.value > 0 ? ` (${selectedImportFileRows.value} baris terdeteksi)` : ''
+  updateImportProgress(0, `Siap upload${rowLabel}.`)
 }
 
 const waitImportProgressCompletion = async (importId) => {
@@ -512,7 +526,7 @@ const waitImportProgressCompletion = async (importId) => {
     return null
   }
 
-  const maxAttempts = 180 // ~3 menit (interval 1 detik)
+  const maxAttempts = 900 // ~15 menit (interval 1 detik), aman untuk file >1000 baris
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const progress = await alumniStoreProgress(importId)
     if (!progress) {
@@ -554,7 +568,7 @@ const alumniStoreProgress = async (importId) => {
 
 const syncImportedAlumni = async ({ beforeNims, jobStatus }) => {
   const queued = String(jobStatus || '').toLowerCase() === 'queued'
-  const attempts = queued ? 12 : 2
+  const attempts = queued ? 180 : 4
   const intervalMs = queued ? 2500 : 700
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -649,6 +663,21 @@ const startImportUpload = async () => {
       } else {
         error.value = ''
       }
+
+      if (!review || (!review.total && !review.processed && !review.success && !review.failed)) {
+        const afterCount = Number(alumni.value.meta?.total || alumni.value.items?.length || 0)
+        const beforeCount = beforeNims.size
+        const estimatedTotal = Number(selectedImportFileRows.value || 0)
+        const estimatedSuccess = Math.max(0, afterCount - beforeCount)
+        const estimatedFailed = estimatedTotal > 0 ? Math.max(0, estimatedTotal - estimatedSuccess) : 0
+        review = {
+          total: estimatedTotal,
+          processed: estimatedTotal || estimatedSuccess,
+          success: estimatedSuccess,
+          failed: estimatedFailed,
+          estimated: true,
+        }
+      }
     } else {
       const text = await file.text()
       const imported = importLocallyFromText(text)
@@ -695,6 +724,7 @@ const openManualImport = () => {
   importReview.value = null
   selectedImportFile.value = null
   selectedImportFileName.value = ''
+  selectedImportFileRows.value = 0
   updateImportProgress(0, 'Pilih file CSV untuk diupload.')
   if (importInput.value) {
     importInput.value.value = ''
@@ -1618,7 +1648,7 @@ const showingRange = computed(() => {
       role="dialog"
       aria-modal="true"
     >
-      <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl shadow-slate-900/15">
+      <div class="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-3xl bg-white p-5 shadow-xl shadow-slate-900/15">
         <div class="flex items-start justify-between gap-3">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-600">Impor dari SIAKAD</p>
@@ -1634,10 +1664,11 @@ const showingRange = computed(() => {
           </button>
         </div>
 
-        <div class="mt-4 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-4 text-sm text-slate-700">
+        <div class="mt-3 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3 text-xs text-slate-700">
           <p>Ketika API siap, alur ini akan memanggil endpoint SIAKAD untuk menarik data lulusan terbaru.</p>
           <p>Untuk sekarang, gunakan simulasi atau unggah CSV manual agar tabel tetap terisi.</p>
-          <div class="space-y-2 rounded-2xl bg-white/60 p-3 text-xs">
+          <details class="space-y-2 rounded-2xl bg-white/60 p-3 text-xs">
+            <summary class="cursor-pointer font-semibold text-slate-800">Lihat format CSV & contoh data</summary>
             <p class="font-semibold text-slate-800">Format CSV (baris pertama wajib header):</p>
             <code class="block rounded-lg bg-slate-900/90 px-3 py-2 font-mono text-[11px] text-emerald-100">
               Nama,NIM,Prodi,Fakultas,Tahun Lulus,Tahun Masuk,Email,NIK,No HP,Alamat,Tanggal Lahir,Foto
@@ -1649,7 +1680,7 @@ Siti Aisyah,190102001,Informatika,Teknik,2023,2019,siti.aisyah@example.com,32019
 Rizky Pratama,190102014,Sistem Informasi,Teknik,2022,2018,rizky.pratama@example.com,320190100014,0812102014,"Jl. Kenari No. 8, Jakarta",1998-11-05,
 Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,320190100019,0812102019,"Jl. Gatot Subroto No. 88, Bandung",1996-12-11,https://example.com/foto.jpg</pre>
             <p class="text-[11px] text-slate-600">Minimal 11 kolom terisi (kolom Foto opsional). Gunakan koma sebagai pemisah dan satu baris per alumni.</p>
-          </div>
+          </details>
         </div>
 
         <div class="mt-4 flex flex-wrap gap-3">
@@ -1689,6 +1720,7 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
 
         <p v-if="selectedImportFileName" class="mt-2 text-xs font-semibold text-slate-600">
           File terpilih: {{ selectedImportFileName }}
+          <span v-if="selectedImportFileRows > 0">({{ selectedImportFileRows }} baris)</span>
         </p>
 
         <div v-if="importLoading || importProgress > 0" class="mt-4">
@@ -1711,6 +1743,9 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
           <p>Diproses: {{ importReview.processed }}</p>
           <p>Berhasil: {{ importReview.success }}</p>
           <p>Gagal: {{ importReview.failed }}</p>
+          <p v-if="importReview.estimated" class="mt-1 text-[11px] text-emerald-700">
+            Ringkasan ini estimasi karena backend belum mengirim summary final.
+          </p>
           <button
             type="button"
             class="mt-3 inline-flex items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700"
