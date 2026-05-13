@@ -14,6 +14,7 @@ import { DASHBOARD_TIMEOUT_MS } from '@/services/requestTimeout'
 const { slides, fetchSlides } = useCtaSlides()
 const auth = useAuth()
 const { locale } = useI18n()
+const hasApiBaseUrl = Boolean(import.meta.env.VITE_API_BASE_URL)
 
 const localeDate = computed(() => (locale.value === 'ar' ? 'ar-SA' : locale.value === 'en' ? 'en-US' : 'id-ID'))
 
@@ -878,15 +879,15 @@ const industryPalette = [
 ]
 
 const defaultTracerStats = computed(() => ({
-  employedPercent: 76,
-  waitMonths: 2.8,
-  salaryMin: 4.5,
-  salaryMax: 7.2,
-  topIndustryLabel: homeExtraCopy.value.defaultStats.topIndustryLabel,
-  topIndustryPercent: homeExtraCopy.value.defaultStats.topIndustryPercent,
+  employedPercent: hasApiBaseUrl ? 0 : 76,
+  waitMonths: hasApiBaseUrl ? 0 : 2.8,
+  salaryMin: hasApiBaseUrl ? 0 : 4.5,
+  salaryMax: hasApiBaseUrl ? 0 : 7.2,
+  topIndustryLabel: hasApiBaseUrl ? '-' : homeExtraCopy.value.defaultStats.topIndustryLabel,
+  topIndustryPercent: hasApiBaseUrl ? 0 : homeExtraCopy.value.defaultStats.topIndustryPercent,
   industries: homeExtraCopy.value.defaultStats.industries.map((label, index) => ({
     label,
-    value: [34, 22, 18, 12, 14][index] ?? 0,
+    value: hasApiBaseUrl ? 0 : ([34, 22, 18, 12, 14][index] ?? 0),
     ...industryPalette[index % industryPalette.length],
   })),
 }))
