@@ -878,6 +878,68 @@ const industryPalette = [
   { colorFrom: 'from-fuchsia-500', colorTo: 'to-purple-500' },
 ]
 
+const INDUSTRY_OTHER_LABEL = 'Lainnya'
+const INDUSTRY_BASE_LABELS = [
+  'Instansi pemerintah',
+  'BUMN/BUMD',
+  'Organisasi multilateral',
+  'LSM',
+  'Perusahaan swasta',
+  'Wiraswasta',
+  'Lembaga/Yayasan',
+]
+
+const normalizeText = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const categorizeIndustryLabel = (label) => {
+  const text = normalizeText(label)
+  if (!text) return INDUSTRY_OTHER_LABEL
+  if (text.includes('bumn') || text.includes('bumd')) return 'BUMN/BUMD'
+  if (
+    text.includes('instansi pemerintah') ||
+    text.includes('pemerintah') ||
+    text.includes('kementerian') ||
+    text.includes('dinas') ||
+    text.includes('pemda') ||
+    text.includes('badan ')
+  )
+    return 'Instansi pemerintah'
+  if (text.includes('organisasi multilateral') || text.includes('multilateral')) return 'Organisasi multilateral'
+  if (text === 'lsm' || text.includes(' lsm') || text.includes('lsm ')) return 'LSM'
+  if (text.includes('wiraswasta') || text.includes('wirausaha') || text.includes('entrepreneur')) return 'Wiraswasta'
+  if (text.includes('yayasan') || text.includes('lembaga') || text.includes('foundation')) return 'Lembaga/Yayasan'
+  if (text.includes('swasta') || text.includes('perusahaan')) return 'Perusahaan swasta'
+  if (text.includes('lain')) return INDUSTRY_OTHER_LABEL
+  return INDUSTRY_OTHER_LABEL
+}
+
+const buildIndustryDisplay = (rawLabels = [], total = 0) => {
+  const counts = new Map([...INDUSTRY_BASE_LABELS, INDUSTRY_OTHER_LABEL].map((label) => [label, 0]))
+  rawLabels.forEach((label) => {
+    const bucket = categorizeIndustryLabel(label)
+    counts.set(bucket, (counts.get(bucket) || 0) + 1)
+  })
+
+  const ranked = INDUSTRY_BASE_LABELS.map((label) => ({ label, count: counts.get(label) || 0 }))
+    .filter((item) => item.count > 0)
+    .sort((a, b) => b.count - a.count)
+
+  const topFour = ranked.slice(0, 4)
+  const remainingCount =
+    (counts.get(INDUSTRY_OTHER_LABEL) || 0) + ranked.slice(4).reduce((acc, item) => acc + item.count, 0)
+
+  const finalRows = [...topFour, { label: INDUSTRY_OTHER_LABEL, count: remainingCount }]
+  return finalRows.map((item, index) => ({
+    label: item.label,
+    value: total > 0 ? Math.round((item.count / total) * 100) : 0,
+    ...industryPalette[index % industryPalette.length],
+  }))
+}
+
 const defaultTracerStats = computed(() => ({
   employedPercent: hasApiBaseUrl ? 0 : 76,
   waitMonths: hasApiBaseUrl ? 0 : 2.8,
@@ -885,7 +947,10 @@ const defaultTracerStats = computed(() => ({
   salaryMax: hasApiBaseUrl ? 0 : 7.2,
   topIndustryLabel: hasApiBaseUrl ? '-' : homeExtraCopy.value.defaultStats.topIndustryLabel,
   topIndustryPercent: hasApiBaseUrl ? 0 : homeExtraCopy.value.defaultStats.topIndustryPercent,
-  industries: homeExtraCopy.value.defaultStats.industries.map((label, index) => ({
+  industries: (hasApiBaseUrl
+    ? ['Instansi pemerintah', 'BUMN/BUMD', 'Organisasi multilateral', 'LSM', INDUSTRY_OTHER_LABEL]
+    : homeExtraCopy.value.defaultStats.industries
+  ).map((label, index) => ({
     label,
     value: hasApiBaseUrl ? 0 : ([34, 22, 18, 12, 14][index] ?? 0),
     ...industryPalette[index % industryPalette.length],
@@ -1039,21 +1104,9 @@ const percentile = (values, percent) => {
 }
 
 const buildIndustryList = (items = [], total = 0) => {
-  const bucket = new Map()
-  items.forEach((label) => {
-    if (!label) return
-    const key = label.toLowerCase()
-    const current = bucket.get(key) || { label, count: 0 }
-    current.count += 1
-    bucket.set(key, current)
-  })
-  const sorted = Array.from(bucket.values()).sort((a, b) => b.count - a.count).slice(0, 5)
-  if (!sorted.length) return defaultTracerStats.value.industries
-  return sorted.map((item, index) => ({
-    label: item.label,
-    value: total ? Math.round((item.count / total) * 100) : 0,
-    ...industryPalette[index % industryPalette.length],
-  }))
+  const filtered = items.filter(Boolean)
+  if (!filtered.length) return defaultTracerStats.value.industries
+  return buildIndustryDisplay(filtered, total)
 }
 
 const getDotClass = (colorFrom) => {
@@ -1159,19 +1212,12 @@ const tracerInsightsSummary = computed(() => {
     ]) ?? defaultTracerStats.value.salaryMax
 
   const companyTypes = payload.workplace?.company_types || {}
-  const companyEntries = Object.entries(companyTypes)
-    .map(([label, count]) => ({ label, count: toNumber(count) || 0 }))
-    .filter((item) => item.label && item.count > 0)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5)
-
-  const totalCompanyCount = companyEntries.reduce((acc, item) => acc + item.count, 0)
-  const industries = companyEntries.length
-    ? companyEntries.map((item, index) => ({
-        label: item.label,
-        value: totalCompanyCount > 0 ? Math.round((item.count / totalCompanyCount) * 100) : 0,
-        ...industryPalette[index % industryPalette.length],
-      }))
+  const expandedIndustryLabels = Object.entries(companyTypes).flatMap(([label, count]) => {
+    const safeCount = Math.max(0, Math.round(toNumber(count) || 0))
+    return safeCount ? Array.from({ length: safeCount }, () => label) : []
+  })
+  const industries = expandedIndustryLabels.length
+    ? buildIndustryDisplay(expandedIndustryLabels, expandedIndustryLabels.length)
     : defaultTracerStats.value.industries
 
   const topIndustryLabel = industries[0]?.label || defaultTracerStats.value.topIndustryLabel
