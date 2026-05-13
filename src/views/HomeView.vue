@@ -8,6 +8,8 @@ import { useJobs } from '../stores/jobs'
 import { useNews } from '../stores/news'
 import { useArticles } from '../stores/articles'
 import { useAuth } from '../stores/auth'
+import dashboardService from '@/services/dashboardService'
+import { DASHBOARD_TIMEOUT_MS } from '@/services/requestTimeout'
 
 const { slides, fetchSlides } = useCtaSlides()
 const auth = useAuth()
@@ -1059,6 +1061,8 @@ const getDotClass = (colorFrom) => {
 }
 
 const tracerSummary = computed(() => {
+  if (tracerInsightsSummary.value) return tracerInsightsSummary.value
+
   const records = alumniResponses.value
   const total = records.length
   if (!total) return { ...defaultTracerStats.value }
@@ -1081,6 +1085,94 @@ const tracerSummary = computed(() => {
   const salaryMin = percentile(salaryList, 0.25) ?? defaultTracerStats.value.salaryMin
   const salaryMax = percentile(salaryList, 0.75) ?? defaultTracerStats.value.salaryMax
   const industries = buildIndustryList(industryList, total)
+  const topIndustryLabel = industries[0]?.label || defaultTracerStats.value.topIndustryLabel
+  const topIndustryPercent = industries[0]?.value ?? defaultTracerStats.value.topIndustryPercent
+
+  return {
+    employedPercent,
+    waitMonths,
+    salaryMin,
+    salaryMax,
+    topIndustryLabel,
+    topIndustryPercent,
+    industries,
+  }
+})
+
+const tracerInsights = ref(null)
+
+const toNumber = (value) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const pickFirstNumber = (sources = []) => {
+  for (const value of sources) {
+    const parsed = toNumber(value)
+    if (parsed !== null) return parsed
+  }
+  return null
+}
+
+const tracerInsightsSummary = computed(() => {
+  const payload = tracerInsights.value
+  if (!payload || typeof payload !== 'object') return null
+
+  const summary = payload.summary || {}
+  const waitingTime = payload.waiting_time || {}
+  const statusCounts = summary.status_counts || {}
+  const totalRespondents = pickFirstNumber([summary.total_respondents, summary.totalRespondents]) || 0
+
+  const employedCount = Object.entries(statusCounts).reduce((acc, [key, value]) => {
+    const normalized = String(key || '').toLowerCase()
+    if (!['bekerja', 'wira', 'wiraswasta'].some((item) => normalized.includes(item))) return acc
+    return acc + (toNumber(value) || 0)
+  }, 0)
+
+  const employedPercent =
+    pickFirstNumber([summary.employed_percent, summary.employment_rate, summary.employedRate]) ??
+    (totalRespondents > 0 ? (employedCount / totalRespondents) * 100 : defaultTracerStats.value.employedPercent)
+
+  const waitMonths =
+    pickFirstNumber([waitingTime.avg_wait_months, waitingTime.avgWaitMonths, waitingTime.median_wait_months]) ??
+    defaultTracerStats.value.waitMonths
+
+  const salaryMin =
+    pickFirstNumber([
+      payload.salary?.p25,
+      payload.salary?.q1,
+      payload.salary?.min,
+      payload.compensation?.p25,
+      payload.compensation?.q1,
+      payload.compensation?.min,
+    ]) ?? defaultTracerStats.value.salaryMin
+
+  const salaryMax =
+    pickFirstNumber([
+      payload.salary?.p75,
+      payload.salary?.q3,
+      payload.salary?.max,
+      payload.compensation?.p75,
+      payload.compensation?.q3,
+      payload.compensation?.max,
+    ]) ?? defaultTracerStats.value.salaryMax
+
+  const companyTypes = payload.workplace?.company_types || {}
+  const companyEntries = Object.entries(companyTypes)
+    .map(([label, count]) => ({ label, count: toNumber(count) || 0 }))
+    .filter((item) => item.label && item.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
+  const totalCompanyCount = companyEntries.reduce((acc, item) => acc + item.count, 0)
+  const industries = companyEntries.length
+    ? companyEntries.map((item, index) => ({
+        label: item.label,
+        value: totalCompanyCount > 0 ? Math.round((item.count / totalCompanyCount) * 100) : 0,
+        ...industryPalette[index % industryPalette.length],
+      }))
+    : defaultTracerStats.value.industries
+
   const topIndustryLabel = industries[0]?.label || defaultTracerStats.value.topIndustryLabel
   const topIndustryPercent = industries[0]?.value ?? defaultTracerStats.value.topIndustryPercent
 
@@ -1180,6 +1272,18 @@ const loadTracerResponses = async () => {
       )
     }
   } catch (error) {
+  }
+}
+
+const loadTracerInsights = async () => {
+  try {
+    const response = await dashboardService.getTracerInsights(
+      {},
+      { skipAuthRedirect: true, timeout: Math.max(20_000, DASHBOARD_TIMEOUT_MS) },
+    )
+    tracerInsights.value = response?.data ?? response ?? null
+  } catch (error) {
+    tracerInsights.value = null
   }
 }
 
@@ -1330,7 +1434,7 @@ onMounted(() => {
   fetchNews()
   fetchArticles()
   setTimeout(() => {
-    void loadTracerResponses()
+    void loadTracerInsights()
   }, 250)
 
   if (typeof window !== 'undefined' && miniDashboardSectionRef.value) {
