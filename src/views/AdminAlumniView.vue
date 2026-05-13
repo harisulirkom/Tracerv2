@@ -55,14 +55,17 @@ const importInput = ref(null)
 const showDetailModal = ref(false)
 const showSiakadWarning = ref(false)
 const emailTemplateOpen = ref(false)
+const sendLinkMenuOpen = ref(false)
 const blastLoading = ref(false)
 const pageLoading = computed(() => alumni.value.loading || importLoading.value || blastLoading.value)
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30 // 30 hari
 const pageSizeOptions = ['all', 10, 50, 100, 200]
 const pageSize = ref(10)
 const currentPage = ref(1)
-const bulkMenuOpen = ref(false)
 const hasApi = Boolean(import.meta.env.VITE_API_BASE_URL)
+const BLAST_LOGO_STORAGE_KEY = 'cdc_alumni_blast_logo_url'
+const defaultBlastLogoUrl = `${window.location.origin}/CDC.svg`
+const blastLogoUrl = ref(defaultBlastLogoUrl)
 const emailSubject = ref('Tracer Study Alumni - CDC UIN Kediri')
 const templateSaving = ref(false)
 const editModalOpen = ref(false)
@@ -109,6 +112,12 @@ const setSelection = (item) => {
 }
 
 onMounted(async () => {
+  try {
+    const savedLogo = localStorage.getItem(BLAST_LOGO_STORAGE_KEY)
+    if (savedLogo && savedLogo.trim()) blastLogoUrl.value = savedLogo.trim()
+  } catch (e) {
+    // ignore storage errors
+  }
   await loadEmailSettings()
   await fetchAlumni({}, { forceRemote: true })
 })
@@ -1310,11 +1319,40 @@ const getShareLinkApi = async (alumniItem) => {
   }
 }
 
+const buildShareMessage = (alumniItem, linkValue) => {
+  const item = alumniItem || {}
+  const template = (emailTemplate.value || defaultBlastTemplate).trim()
+  const link = String(linkValue || '').trim()
+  const logoUrl = String(blastLogoUrl.value || defaultBlastLogoUrl).trim()
+  return template
+    .replaceAll('{nama}', String(item.nama || 'Alumni'))
+    .replaceAll('{nim}', String(item.nim || '-'))
+    .replaceAll('{prodi}', String(item.prodi || '-'))
+    .replaceAll('{fakultas}', String(item.fakultas || '-'))
+    .replaceAll('{tahun_lulus}', String(item.tahunLulus || '-'))
+    .replaceAll('{logo_url}', logoUrl)
+    .replaceAll('{link}', link || `${window.location.origin}/kuisioner/alumni`)
+}
+
+const blastMessagePreview = computed(() => {
+  const sample = selectedAlumniList.value[0] || {}
+  const template = (templateDraft.value || emailTemplate.value || defaultBlastTemplate).trim()
+  const logoUrl = String(logoUrlDraft.value || blastLogoUrl.value || defaultBlastLogoUrl).trim()
+  return template
+    .replaceAll('{nama}', String(sample.nama || 'Alumni'))
+    .replaceAll('{nim}', String(sample.nim || '-'))
+    .replaceAll('{prodi}', String(sample.prodi || '-'))
+    .replaceAll('{fakultas}', String(sample.fakultas || '-'))
+    .replaceAll('{tahun_lulus}', String(sample.tahunLulus || '-'))
+    .replaceAll('{logo_url}', logoUrl)
+    .replaceAll('{link}', `${window.location.origin}/kuisioner/login`)
+})
+
 const sendWhatsApp = async (alumniItem) => {
   try {
     message.value = 'Membuat link aman...'
     const link = await getShareLinkApi(alumniItem)
-    const text = `Halo ${alumniItem.nama}, mohon mengisi tracer study melalui tautan berikut (aktif 30 hari): ${link}`
+    const text = buildShareMessage(alumniItem, link)
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`
     window.open(url, '_blank', 'noopener')
     markSent(alumniItem.nim)
@@ -1329,6 +1367,7 @@ const defaultBlastTemplate =
 const emailTemplate = ref(defaultBlastTemplate)
 const templateDraft = ref(defaultBlastTemplate)
 const subjectDraft = ref(emailSubject.value)
+const logoUrlDraft = ref(defaultBlastLogoUrl)
 
 const loadEmailSettings = async () => {
   if (!hasApi) return
@@ -1344,6 +1383,7 @@ const loadEmailSettings = async () => {
 const openEmailTemplateEditor = () => {
   templateDraft.value = emailTemplate.value || defaultBlastTemplate
   subjectDraft.value = emailSubject.value || 'Tracer Study Alumni - CDC UIN Kediri'
+  logoUrlDraft.value = blastLogoUrl.value || defaultBlastLogoUrl
   emailTemplateOpen.value = true
 }
 
@@ -1355,6 +1395,7 @@ const closeEmailTemplateEditor = () => {
 const saveEmailTemplate = () => {
   const nextTemplate = templateDraft.value?.trim() || defaultBlastTemplate
   const nextSubject = subjectDraft.value?.trim() || 'Tracer Study Alumni - CDC UIN Kediri'
+  const nextLogoUrl = logoUrlDraft.value?.trim() || defaultBlastLogoUrl
   if (!hasApi) {
     error.value = 'Backend tidak tersedia. Pastikan VITE_API_BASE_URL sudah diatur.'
     return
@@ -1369,6 +1410,12 @@ const saveEmailTemplate = () => {
     .then((resp) => {
       emailTemplate.value = resp?.body || nextTemplate
       emailSubject.value = resp?.subject || nextSubject
+      blastLogoUrl.value = nextLogoUrl
+      try {
+        localStorage.setItem(BLAST_LOGO_STORAGE_KEY, nextLogoUrl)
+      } catch (e) {
+        // ignore storage errors
+      }
       message.value = 'Narasi email tersimpan di backend.'
       emailTemplateOpen.value = false
     })
@@ -1401,6 +1448,7 @@ const confirmSaveEmailTemplate = () => {
 const resetEmailTemplate = () => {
   templateDraft.value = defaultBlastTemplate
   subjectDraft.value = 'Tracer Study Alumni - CDC UIN Kediri'
+  logoUrlDraft.value = defaultBlastLogoUrl
 }
 
 const runEmailBlast = async (targets = []) => {
@@ -1448,7 +1496,6 @@ const runEmailBlast = async (targets = []) => {
     message.value = ''
   } finally {
     blastLoading.value = false
-    bulkMenuOpen.value = false
   }
 }
 
@@ -1456,8 +1503,6 @@ const sendEmail = async (alumniItem) => {
   await runEmailBlast([alumniItem])
 }
 
-// Bulk send implementation would need to generate multiple links, which might be slow.
-// For now, let's limit bulk send or handle it sequentially.
 const sendBulkWhatsApp = async () => {
     if (!selectedAlumniList.value.length) {
         error.value = 'Pilih minimal satu alumni.'
@@ -1473,9 +1518,17 @@ const sendBulkWhatsApp = async () => {
     // Generic Link: /kuisioner/login (Alumni types their NIM).
     const genericLink = `${window.location.origin}/kuisioner/login`
     
-    const names = selectedAlumniList.value.slice(0, 3).map((a) => a.nama).join(', ')
-    const more = selectedAlumniList.value.length > 3 ? `, dan ${selectedAlumniList.value.length - 3} lainnya` : ''
-    const text = `Halo ${names}${more}, mohon mengisi tracer study. Silakan login dengan NIM anda di: ${genericLink}`
+    const first = selectedAlumniList.value[0] || {}
+    const text = buildShareMessage(
+      {
+        ...first,
+        nama:
+          selectedAlumniList.value.length > 1
+            ? `${first.nama || 'Alumni'} + ${selectedAlumniList.value.length - 1} alumni lain`
+            : first.nama || 'Alumni',
+      },
+      genericLink,
+    )
     
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`
     window.open(url, '_blank', 'noopener')
@@ -1484,6 +1537,24 @@ const sendBulkWhatsApp = async () => {
 
 const sendBulkEmail = async () => {
   await runEmailBlast(selectedAlumniList.value)
+}
+
+const openSendLinkMenu = () => {
+  sendLinkMenuOpen.value = true
+}
+
+const closeSendLinkMenu = () => {
+  sendLinkMenuOpen.value = false
+}
+
+const chooseSendViaWhatsApp = async () => {
+  closeSendLinkMenu()
+  await sendBulkWhatsApp()
+}
+
+const chooseSendViaEmail = async () => {
+  closeSendLinkMenu()
+  await sendBulkEmail()
 }
 
 const goPrev = () => {
@@ -1560,45 +1631,21 @@ const showingRange = computed(() => {
               <p class="text-sm text-slate-500">Menampilkan kolom Nama, NIM, Prodi, Fakultas, dan Tahun Lulus.</p>
             </div>
             <div class="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-              <div class="relative">
-                <button
-                  type="button"
+              <button
+                type="button"
                 class="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition btn-white-gradient-hover"
                 :class="selectedAlumniList.length ? 'border-teal-200 bg-teal-50 text-teal-700' : ''"
-                @click="bulkMenuOpen = !bulkMenuOpen"
+                @click="openSendLinkMenu"
               >
                 Kirim link ({{ selectedAlumniList.length || 0 }})
-                  <span aria-hidden="true">▾</span>
-                </button>
-                <div
-                  v-if="bulkMenuOpen"
-                  class="absolute right-0 z-10 mt-2 w-48 rounded-2xl border border-slate-100 bg-white shadow-xl shadow-slate-200/80"
-                >
-                  <button
-                    type="button"
-                  class="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-semibold text-slate-700 transition btn-white-gradient-hover"
-                  @click="sendBulkWhatsApp"
-                >
-                  <span aria-hidden="true">📱</span>
-                  Kirim via WhatsApp
-                </button>
-                <button
-                  type="button"
-                  class="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-semibold text-slate-700 transition btn-white-gradient-hover"
-                  @click="sendBulkEmail"
-                >
-                  <span aria-hidden="true">✉️</span>
-                  Kirim via Email
-                </button>
-                <button
-                  type="button"
-                  class="flex w-full items-center gap-2 px-4 py-2 text-left text-xs font-semibold text-slate-700 transition btn-white-gradient-hover"
-                  @click="openEmailTemplateEditor"
-                >
-                  Atur narasi email
-                </button>
-                </div>
-              </div>
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition btn-white-gradient-hover"
+                @click="openEmailTemplateEditor"
+              >
+                Edit narasi email
+              </button>
               <button
                 type="button"
                 class="inline-flex shrink-0 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition btn-white-gradient-hover"
@@ -2039,17 +2086,17 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
 
     <div
       v-if="emailTemplateOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4 py-6"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-3 py-3 sm:px-4 sm:py-6"
       role="dialog"
       aria-modal="true"
     >
-      <div class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl shadow-slate-900/15">
-        <div class="flex items-start justify-between gap-3">
+      <div class="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-xl shadow-slate-900/15">
+        <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Email blast</p>
-            <h3 class="text-lg font-semibold text-slate-900">Atur narasi email</h3>
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Narasi pengiriman</p>
+            <h3 class="text-lg font-semibold text-slate-900">Atur narasi blast email & WhatsApp</h3>
             <p class="text-xs text-slate-500">
-              Gunakan placeholder: {nama}, {nim}, {prodi}, {tahun_lulus}, {link}.
+              Gunakan placeholder: {nama}, {nim}, {prodi}, {fakultas}, {tahun_lulus}, {logo_url}, {link}.
             </p>
           </div>
           <button
@@ -2061,7 +2108,7 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
           </button>
         </div>
 
-        <div class="mt-4 space-y-4">
+        <div class="space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
           <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
             Subjek email
           </label>
@@ -2073,20 +2120,34 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
           />
 
           <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Narasi email
+            URL logo
+          </label>
+          <input
+            v-model="logoUrlDraft"
+            type="text"
+            class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 shadow-inner shadow-slate-100 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
+            placeholder="https://domain-kampus/logo-cdc.png"
+          />
+
+          <label class="block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Narasi blast terpadu
           </label>
           <textarea
             v-model="templateDraft"
-            rows="8"
+            rows="7"
             class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-inner shadow-slate-100 focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
-            placeholder="Tulis narasi email..."
+            placeholder="Tulis narasi yang dipakai untuk blast email dan WhatsApp..."
           ></textarea>
           <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-600">
             Contoh: Halo {nama}, mohon isi tracer study di tautan berikut: {link}
           </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Preview pesan WhatsApp</p>
+            <pre class="mt-2 whitespace-pre-wrap break-words text-xs text-slate-700">{{ blastMessagePreview }}</pre>
+          </div>
         </div>
 
-        <div class="mt-5 flex flex-wrap gap-3">
+        <div class="flex flex-wrap gap-3 border-t border-slate-100 px-5 py-4 sm:px-6">
           <button
             type="button"
             class="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-60"
@@ -2105,6 +2166,59 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
         </div>
       </div>
     </div>
+
+    <div
+      v-if="sendLinkMenuOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4 py-6"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl shadow-slate-900/15">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Kirim Link Alumni</p>
+            <h3 class="text-lg font-semibold text-slate-900">Pilih channel pengiriman</h3>
+            <p class="mt-1 text-xs text-slate-500">
+              Target terpilih: {{ selectedAlumniList.length }} alumni.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+            @click="closeSendLinkMenu"
+          >
+            Tutup
+          </button>
+        </div>
+
+        <div class="mt-5 grid gap-3">
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+            @click="chooseSendViaWhatsApp"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4 fill-current" aria-hidden="true">
+              <path d="M12 2a10 10 0 0 0-8.77 14.8L2 22l5.37-1.2A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.08-1.12l-.29-.17-3.18.71.7-3.1-.2-.31A8 8 0 1 1 12 20Zm4.44-5.62c-.24-.12-1.42-.7-1.64-.78-.22-.08-.38-.12-.54.12s-.62.78-.77.94c-.14.16-.28.18-.52.06a6.5 6.5 0 0 1-1.92-1.18 7.2 7.2 0 0 1-1.33-1.66c-.14-.24-.02-.37.1-.5.1-.1.24-.26.36-.38.12-.12.16-.2.24-.34.08-.14.04-.26-.02-.38-.06-.12-.54-1.3-.74-1.78-.2-.48-.4-.42-.54-.43h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.3.98 2.46c.12.16 1.7 2.6 4.12 3.64.58.25 1.03.4 1.38.5.58.18 1.1.16 1.52.1.46-.06 1.42-.58 1.62-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/>
+            </svg>
+            Kirim via WhatsApp
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+            @click="chooseSendViaEmail"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4 fill-current" aria-hidden="true">
+              <path d="M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm9 7.2L4 7v10h16V7l-8 5.2Zm0-2L19.6 6H4.4L12 10.2Z"/>
+            </svg>
+            Kirim via Email
+          </button>
+        </div>
+
+        <p class="mt-4 text-[11px] text-slate-500">
+          Untuk blast email, admin wajib memilih target alumni terlebih dahulu.
+        </p>
+      </div>
+    </div>
     <Transition name="alert-dialog">
       <div
         v-if="confirmTemplateSaveOpen"
@@ -2120,10 +2234,10 @@ Mega Lestari,190103019,Teknik Sipil,Teknik,2020,2016,mega.lestari@example.com,32
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Konfirmasi</p>
               <h3 id="template-confirm-title" class="text-lg font-semibold text-slate-900">
-                Simpan narasi email blast?
+                Simpan narasi pengiriman?
               </h3>
               <p id="template-confirm-desc" class="mt-2 text-sm text-slate-600">
-                Perubahan subjek dan isi narasi email akan disimpan ke sistem.
+                Perubahan narasi email dan share link akan disimpan.
               </p>
             </div>
             <button
