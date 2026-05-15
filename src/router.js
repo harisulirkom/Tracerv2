@@ -31,7 +31,6 @@ import AdminKuisionerResponsesView from './views/AdminKuisionerResponsesView.vue
 import NotFoundView from './views/NotFoundView.vue'
 import UnderDevelopmentView from './views/UnderDevelopmentView.vue'
 import TestApiView from './views/TestApi.vue'
-import InternalAiCareerPrototypeView from './views/InternalAiCareerPrototypeView.vue'
 import QuestionnaireListView from './views/Questionnaire/List.vue'
 import QuestionnaireCreateView from './views/Questionnaire/Create.vue'
 import QuestionnaireDetailView from './views/Questionnaire/Detail.vue'
@@ -75,7 +74,6 @@ const routes = [
         props: true,
       },
       { path: 'test-api', name: 'TestApi', component: TestApiView },
-      { path: 'internal/ai-career-prototype', name: 'InternalAiCareerPrototype', component: InternalAiCareerPrototypeView },
       { path: 'coming-soon/:slug?', name: 'ComingSoon', component: UnderDevelopmentView },
       { path: 'login', name: 'Login', component: LoginView, meta: { guestOnly: true } },
     ],
