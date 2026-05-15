@@ -1,0 +1,97 @@
+﻿Checklist 10 Langkah Wajib Saat Akses Server Aplikasi
+(Ubuntu + Nginx + Laravel/Octane)
+
+1) Buat user non-root + sudo
+Perintah:
+sudo adduser deploy
+sudo usermod -aG sudo deploy
+id deploy
+
+2) SSH key auth + nonaktifkan root/password login (setelah key teruji)
+Perintah:
+# di laptop
+ssh-keygen -t ed25519 -C "deploy-key"
+ssh-copy-id deploy@IP_SERVER
+
+# di server
+sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+sudo systemctl reload ssh
+
+3) Patch rutin OS
+Perintah:
+sudo apt update
+sudo apt -y upgrade
+sudo apt -y autoremove
+
+4) Firewall minimum
+Perintah:
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status verbose
+
+5) Backup + uji restore
+Perintah:
+sudo mkdir -p /var/backups/cdc
+
+# backup DB
+mysqldump -u DB_USER -p'DB_PASS' DB_NAME > /var/backups/cdc/db_$(date +%F).sql
+
+# backup file app
+sudo tar -czf /var/backups/cdc/app_$(date +%F).tar.gz /var/www/cdc/backend
+
+# test restore ke DB uji
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS cdc_restore_test;"
+mysql -u root -p cdc_restore_test < /var/backups/cdc/db_YYYY-MM-DD.sql
+
+6) Amankan secret .env
+Perintah:
+cd /var/www/cdc/backend
+sudo chown www-data:www-data .env
+sudo chmod 640 .env
+grep -nE '^(APP_ENV|APP_DEBUG|APP_KEY|MAIL_|BREVO_)' .env
+
+7) Urutan wajib setelah deploy
+Perintah:
+cd /var/www/cdc/backend
+git pull origin main
+composer install --no-dev --optimize-autoloader --no-interaction
+php artisan migrate --force
+php artisan optimize:clear
+php artisan config:cache
+php artisan route:cache
+php artisan queue:restart
+php artisan octane:reload --server=roadrunner
+sudo systemctl reload nginx
+
+8) Monitoring log/service dasar
+Perintah:
+tail -f /var/www/cdc/backend/storage/logs/laravel.log
+sudo journalctl -u cdc-queue.service -f
+sudo tail -f /var/log/nginx/error.log
+sudo systemctl --failed
+df -h
+
+9) HTTPS + auto-renew
+Perintah:
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d tracer.domainkamu.com -d api.domainkamu.com
+sudo certbot renew --dry-run
+systemctl list-timers | grep -i certbot
+
+10) Runbook operasional (deploy/rollback/restart)
+Perintah:
+sudo mkdir -p /opt/runbook
+sudo nano /opt/runbook/OPERATIONS.md
+
+Template isi runbook:
+- Deploy: git pull, composer install, migrate, cache, queue restart, octane reload
+- Rollback: checkout tag/commit sebelumnya, cache ulang, restart service
+- Restart service: nginx, cdc-queue, octane
+- Recovery: restore DB + restore file backup
+- Health check: curl endpoint API + cek laravel.log

@@ -1,5 +1,6 @@
 const DEFAULT_API_TIMEOUT_MS = 10_000
 const DEFAULT_DASHBOARD_TIMEOUT_MS = 20_000
+const DEFAULT_IMPORT_API_TIMEOUT_MS = 300_000
 
 const parsePositiveTimeout = (value, fallback) => {
   const parsed = Number(value)
@@ -14,6 +15,11 @@ export const API_TIMEOUT_MS = parsePositiveTimeout(
 export const DASHBOARD_TIMEOUT_MS = parsePositiveTimeout(
   import.meta.env.VITE_DASHBOARD_TIMEOUT_MS,
   Math.max(API_TIMEOUT_MS, DEFAULT_DASHBOARD_TIMEOUT_MS),
+)
+
+export const IMPORT_API_TIMEOUT_MS = parsePositiveTimeout(
+  import.meta.env.VITE_IMPORT_API_TIMEOUT_MS,
+  Math.max(API_TIMEOUT_MS, DEFAULT_IMPORT_API_TIMEOUT_MS),
 )
 
 export const isTimeoutError = (error) => {

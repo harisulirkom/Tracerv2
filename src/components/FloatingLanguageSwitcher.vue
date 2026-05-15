@@ -48,11 +48,11 @@ const toggleMenu = () => {
         <button
           type="button"
           class="mt-1.5 flex min-w-[68px] items-center justify-center rounded-[6px] bg-gradient-to-r from-indigo-500 to-sky-500 px-3 py-2 text-[11px] font-semibold text-white shadow-sm"
-          :aria-label="`${t('language.switchTo')} ${activeLocale?.label || ''}`"
           :aria-expanded="expanded"
           @click="toggleMenu"
         >
           <span>{{ activeLocale?.short || 'ID' }}</span>
+          <span class="sr-only"> - {{ t('language.label') }}: {{ activeLocale?.label || '' }}</span>
         </button>
 
         <transition name="fade">
@@ -62,11 +62,11 @@ const toggleMenu = () => {
               :key="entry.code"
               type="button"
               class="rounded-[6px] bg-slate-100 px-2 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-200"
-              :aria-label="`${t('language.switchTo')} ${entry.label}`"
               :title="entry.label"
               @click="selectLocale(entry.code)"
             >
               {{ entry.short }}
+              <span class="sr-only"> - {{ t('language.switchTo') }} {{ entry.label }}</span>
             </button>
           </div>
         </transition>

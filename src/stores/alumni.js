@@ -1,7 +1,7 @@
 import { computed, reactive } from 'vue'
 import alumniService from '@/services/alumniService'
 import api from '@/services/api'
-import { API_TIMEOUT_MS } from '@/services/requestTimeout'
+import { API_TIMEOUT_MS, IMPORT_API_TIMEOUT_MS } from '@/services/requestTimeout'
 
 const STORAGE_KEY = 'tracer_admin_alumni'
 const TOKEN_STORAGE_KEY = 'tracer_auth_token'
@@ -361,6 +361,7 @@ export const useAlumni = () => {
         response = await api.post(endpoint, buildFormData(), {
           // Remove JSON default header so browser can send proper multipart boundary.
           headers: { 'Content-Type': undefined },
+          timeout: IMPORT_API_TIMEOUT_MS,
           onUploadProgress: (event) => {
             if (!onUploadProgress) return
             onUploadProgress(event)
@@ -406,6 +407,7 @@ export const useAlumni = () => {
       try {
         return await api.post(endpoint, formData, {
           headers: { 'Content-Type': undefined },
+          timeout: IMPORT_API_TIMEOUT_MS,
         })
       } catch (err) {
         lastError = err

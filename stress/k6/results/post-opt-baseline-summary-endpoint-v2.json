@@ -1,0 +1,148 @@
+{
+    "metrics": {
+        "http_reqs": {
+            "count": 86,
+            "rate": 1.8807347210029766
+        },
+        "iterations": {
+            "count": 85,
+            "rate": 1.858865712619221
+        },
+        "vus": {
+            "value": 2,
+            "min": 0,
+            "max": 10
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 86,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_req_receiving": {
+            "p(99)": 10.143955000000021,
+            "max": 13.2802,
+            "avg": 5.65127558139535,
+            "med": 5.4777000000000005,
+            "p(90)": 7.6225000000000005,
+            "p(95)": 8.423925
+        },
+        "http_req_duration{expected_response:true}": {
+            "p(90)": 4457.8155,
+            "p(95)": 4589.947125000001,
+            "p(99)": 4697.18854,
+            "max": 4699.2996,
+            "avg": 2551.017848837209,
+            "med": 2462.00385
+        },
+        "iteration_duration": {
+            "p(90)": 4755.928220000001,
+            "p(95)": 4862.84806,
+            "p(99)": 4994.525648,
+            "max": 5008.3985,
+            "avg": 2870.6670952941176,
+            "med": 2747.9267
+        },
+        "data_sent": {
+            "count": 25065,
+            "rate": 548.1466951388326
+        },
+        "data_received": {
+            "count": 9467385,
+            "rate": 207042.32193724145
+        },
+        "vus_max": {
+            "value": 10,
+            "min": 10,
+            "max": 10
+        },
+        "checks": {
+            "passes": 85,
+            "fails": 85,
+            "thresholds": {
+                "rate>0.99": true
+            },
+            "value": 0.5
+        },
+        "http_req_blocked": {
+            "p(95)": 1.041225,
+            "p(99)": 1.290220000000002,
+            "max": 1.5765,
+            "avg": 0.5973604651162792,
+            "med": 0.5752,
+            "p(90)": 0.94935
+        },
+        "http_req_tls_handshaking": {
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "avg": 0,
+            "med": 0
+        },
+        "http_req_sending": {
+            "avg": 0.0816139534883721,
+            "med": 0,
+            "p(90)": 0.512,
+            "p(95)": 0.697075,
+            "p(99)": 0.7916050000000001,
+            "max": 0.8007
+        },
+        "http_req_waiting": {
+            "p(95)": 4584.48685,
+            "p(99)": 4689.36753,
+            "max": 4690.6189,
+            "avg": 2545.2849593023257,
+            "med": 2456.8165,
+            "p(90)": 4452.5957
+        },
+        "http_req_duration": {
+            "med": 2462.00385,
+            "p(90)": 4457.8155,
+            "p(95)": 4589.947125000001,
+            "p(99)": 4697.18854,
+            "max": 4699.2996,
+            "avg": 2551.017848837209,
+            "thresholds": {
+                "p(95)<1500": true,
+                "p(99)<3000": true
+            }
+        },
+        "http_req_connecting": {
+            "avg": 0.5491093023255814,
+            "med": 0.55105,
+            "p(90)": 0.9148499999999999,
+            "p(95)": 1.041225,
+            "p(99)": 1.290220000000002,
+            "max": 1.5765
+        }
+    },
+    "setup_data": {
+        "questionnaireId": null,
+        "token": "200|SjXEZYfyeqgObxDRlKIoIquGkie0ADluRjassZu78641972e"
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {
+                "summary status 200": {
+                    "name": "summary status 200",
+                    "path": "::summary status 200",
+                    "id": "14a7af35bdfe9048de5bd6f287362e64",
+                    "passes": 85,
+                    "fails": 0
+                },
+                "summary has payload": {
+                    "name": "summary has payload",
+                    "path": "::summary has payload",
+                    "id": "efd51d1a329c5378d25fc6cbd04a591c",
+                    "passes": 0,
+                    "fails": 85
+                }
+            }
+    }
+}

@@ -46,6 +46,7 @@ VITE_DASHBOARD_DATA_URL=/api/dashboard.json # Fallback dashboard bila backend be
 VITE_APP_NAME=Tracer CDC
 VITE_APP_ENV=local
 VITE_API_TIMEOUT_MS=10000                  # Timeout default request API (ms)
+VITE_IMPORT_API_TIMEOUT_MS=300000          # Timeout khusus preview/import file besar (ms)
 VITE_DASHBOARD_TIMEOUT_MS=20000            # Timeout khusus dashboard/insight (ms)
 ```
 

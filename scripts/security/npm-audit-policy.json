@@ -1,0 +1,16 @@
+{
+  "allow_high_critical": [
+    {
+      "id": "GHSA-4r6h-8v6p-xvw6",
+      "package": "xlsx",
+      "reason": "No upstream fix available in npm registry (latest still 0.18.5).",
+      "expires_on": "2026-12-31"
+    },
+    {
+      "id": "GHSA-5pgg-2g8v-p4x9",
+      "package": "xlsx",
+      "reason": "No upstream fix available in npm registry (latest still 0.18.5).",
+      "expires_on": "2026-12-31"
+    }
+  ]
+}
