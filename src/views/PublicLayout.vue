@@ -4,7 +4,7 @@ import { useRoute, useRouter, RouterView, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FloatingLanguageSwitcher from '@/components/FloatingLanguageSwitcher.vue'
 import { useAuth } from '../stores/auth'
-import cdcLogo from '../assets/CDC.svg'
+import cdcLogo from '../assets/Logo CDC UIN SW.svg'
 
 const { t } = useI18n()
 
@@ -15,8 +15,8 @@ const navItems = computed(() => [
     name: t('public.nav.profile'),
     to: '/tentang',
     children: [
-      { key: 'about-cdc', name: t('public.navChildren.aboutCdc'), desc: 'Profil dan arah layanan CDC kampus.', to: '/coming-soon/tentang-cdc' },
-      { key: 'structure', name: t('public.navChildren.organizationStructure'), desc: 'Susunan organisasi dan unit pendukung.', to: '/coming-soon/struktur-organisasi' },
+      { key: 'about-cdc', name: t('public.navChildren.aboutCdc'), desc: 'Profil dan arah layanan CDC kampus.', to: '/tentang' },
+      { key: 'structure', name: t('public.navChildren.organizationStructure'), desc: 'Susunan organisasi dan unit pendukung.', to: '/struktur-organisasi' },
       { key: 'team', name: t('public.navChildren.executionTeam'), desc: 'SDM dan tim pelaksana layanan CDC.', to: '/coming-soon/sdm-tim-pelaksana' },
     ],
   },
@@ -184,8 +184,13 @@ const footerLinks = computed(() => navItems.value.map(({ name, to }) => ({ name,
           >
             <img :src="cdcLogo" :alt="t('public.brand.logoAlt')" class="h-10 w-10 rounded-xl object-cover" />
           </RouterLink>
-          <div class="hidden flex-col leading-tight sm:flex">
-            <span class="text-[11px] uppercase tracking-[0.22em] text-slate-500">{{ t('public.brand.center') }}</span>
+          <div class="hidden max-w-[560px] flex-col leading-tight lg:flex">
+            <span class="text-[11px] tracking-[0.06em] text-slate-600">Unit Penunjang Akademik</span>
+            <span class="text-[11px] font-bold tracking-[0.06em] text-slate-700">
+              Pengembangan Karier dan Kewirausahaan
+              <em class="font-semibold italic">(Career Development Center)</em>
+            </span>
+            <span class="text-[11px] tracking-[0.06em] text-slate-600">UIN Syekh Wasil Kediri</span>
           </div>
         </div>
 
@@ -350,6 +355,7 @@ const footerLinks = computed(() => navItems.value.map(({ name, to }) => ({ name,
         <div class="space-y-3">
           <p class="text-sm font-semibold text-slate-900">{{ t('public.footer.contact') }}</p>
           <p>{{ t('public.footer.email') }}</p>
+          <p>{{ t('public.footer.instagram') }}</p>
           <p>{{ t('public.footer.hours') }}</p>
           <button class="text-indigo-600 hover:text-indigo-500" type="button" @click="openSurveyPicker">
             {{ t('public.footer.fillNow') }}
@@ -380,7 +386,12 @@ const footerLinks = computed(() => navItems.value.map(({ name, to }) => ({ name,
             </div>
             <div>
               <p class="text-sm font-semibold text-slate-900">{{ t('public.brand.shortTitle') }}</p>
-              <p class="text-xs text-slate-500">{{ t('public.brand.center') }}</p>
+              <p class="text-[11px] text-slate-500">Unit Penunjang Akademik</p>
+              <p class="text-[11px] font-bold text-slate-600">
+                Pengembangan Karier dan Kewirausahaan
+                <em class="font-semibold italic">(Career Development Center)</em>
+              </p>
+              <p class="text-[11px] text-slate-500">UIN Syekh Wasil Kediri</p>
             </div>
           </div>
           <button

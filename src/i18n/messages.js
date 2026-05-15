@@ -12,7 +12,7 @@ export const messages = {
     public: {
       brand: {
         logoAlt: 'Logo CDC UIN Kediri',
-        center: 'Career Development Center',
+        center: 'Unit Penunjang Akademik Pengembangan Karier dan Kewirausahaan (Career Development Center) UIN Syekh Wasil Kediri',
         shortTitle: 'CDC UIN Kediri',
       },
       nav: {
@@ -55,7 +55,8 @@ export const messages = {
         description: 'Platform tracer study untuk pengumpulan data alumni, analitik, dan laporan resmi.',
         menu: 'Menu',
         contact: 'Hubungi',
-        email: "Email: tracer{'@'}kampus.ac.id",
+        email: "Email: careerdevelopmentrcenter{'@'}uinkediri.ac.id",
+        instagram: 'Instagram: @cdc.uinkediri',
         hours: 'Jam: Senin-Jumat, 09.00-17.00 WIB',
         fillNow: 'Isi kuisioner sekarang ->',
         copyright: '(c) {year} Tracer Study UIN Syekh Wasil Kediri. Develop by TIPD UIN Syekh Wasil Kediri, Semua hak dilindungi.',
@@ -88,7 +89,7 @@ export const messages = {
     public: {
       brand: {
         logoAlt: 'CDC UIN Kediri logo',
-        center: 'Career Development Center',
+        center: 'Academic Support Unit for Career and Entrepreneurship Development (Career Development Center) UIN Syekh Wasil Kediri',
         shortTitle: 'CDC UIN Kediri',
       },
       nav: {
@@ -131,7 +132,8 @@ export const messages = {
         description: 'Tracer study platform for alumni data collection, analytics, and official reports.',
         menu: 'Menu',
         contact: 'Contact',
-        email: "Email: tracer{'@'}kampus.ac.id",
+        email: "Email: careerdevelopmentrcenter{'@'}uinkediri.ac.id",
+        instagram: 'Instagram: @cdc.uinkediri',
         hours: 'Hours: Monday-Friday, 09.00-17.00 WIB',
         fillNow: 'Fill out the survey now ->',
         copyright: '(c) {year} Tracer Study UIN Syekh Wasil Kediri. Develop by TIPD UIN Syekh Wasil Kediri, Semua hak dilindungi.',
@@ -164,7 +166,7 @@ export const messages = {
     public: {
       brand: {
         logoAlt: 'شعار مركز التطوير المهني',
-        center: 'مركز التطوير المهني',
+        center: 'وحدة الدعم الأكاديمي لتطوير المسار المهني وريادة الأعمال (Career Development Center) UIN Syekh Wasil Kediri',
         shortTitle: 'CDC UIN Kediri',
       },
       nav: {
@@ -207,7 +209,8 @@ export const messages = {
         description: 'منصة دراسة التتبع لجمع بيانات الخريجين والتحليلات والتقارير الرسمية.',
         menu: 'القائمة',
         contact: 'تواصل معنا',
-        email: "البريد الإلكتروني: tracer{'@'}kampus.ac.id",
+        email: "البريد الإلكتروني: careerdevelopmentrcenter{'@'}uinkediri.ac.id",
+        instagram: 'Instagram: @cdc.uinkediri',
         hours: 'الساعات: الاثنين-الجمعة، 09.00-17.00 WIB',
         fillNow: 'املأ الاستبيان الآن ->',
         copyright: '(c) {year} Tracer Study UIN Syekh Wasil Kediri. Develop by TIPD UIN Syekh Wasil Kediri, Semua hak dilindungi.',

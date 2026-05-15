@@ -8,6 +8,7 @@ import KuisionerLandingView from './views/KuisionerLandingView.vue'
 import KuisionerPenggunaView from './views/KuisionerPenggunaView.vue'
 import KuisionerUmumView from './views/KuisionerUmumView.vue'
 import TentangView from './views/TentangView.vue'
+import StrukturOrganisasiView from './views/StrukturOrganisasiView.vue'
 import BeritaDetailView from './views/BeritaDetailView.vue'
 import DaftarKuisionerView from './views/DaftarKuisionerView.vue'
 import LoginView from './views/LoginView.vue'
@@ -30,6 +31,7 @@ import AdminKuisionerResponsesView from './views/AdminKuisionerResponsesView.vue
 import NotFoundView from './views/NotFoundView.vue'
 import UnderDevelopmentView from './views/UnderDevelopmentView.vue'
 import TestApiView from './views/TestApi.vue'
+import InternalAiCareerPrototypeView from './views/InternalAiCareerPrototypeView.vue'
 import QuestionnaireListView from './views/Questionnaire/List.vue'
 import QuestionnaireCreateView from './views/Questionnaire/Create.vue'
 import QuestionnaireDetailView from './views/Questionnaire/Detail.vue'
@@ -55,6 +57,7 @@ const routes = [
       { path: 'kuisioner/umum', name: 'KuisionerUmum', component: KuisionerUmumView },
       { path: 'daftar-kuisioner', name: 'DaftarKuisioner', component: DaftarKuisionerView },
       { path: 'tentang', name: 'Tentang', component: TentangView },
+      { path: 'struktur-organisasi', name: 'StrukturOrganisasi', component: StrukturOrganisasiView },
       { path: 'artikel', name: 'Artikel', component: ArtikelView },
       { path: 'questionnaires', name: 'QuestionnaireList', component: QuestionnaireListView },
       { path: 'questionnaires/create', name: 'QuestionnaireCreate', component: QuestionnaireCreateView },
@@ -72,6 +75,7 @@ const routes = [
         props: true,
       },
       { path: 'test-api', name: 'TestApi', component: TestApiView },
+      { path: 'internal/ai-career-prototype', name: 'InternalAiCareerPrototype', component: InternalAiCareerPrototypeView },
       { path: 'coming-soon/:slug?', name: 'ComingSoon', component: UnderDevelopmentView },
       { path: 'login', name: 'Login', component: LoginView, meta: { guestOnly: true } },
     ],
