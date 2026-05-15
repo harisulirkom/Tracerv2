@@ -56,6 +56,7 @@ const MENU_PERMISSION_KEYS = [
   'kuisioner',
   'alumni',
   'bankSoal',
+  'popupBanner',
   'cta',
   'lowongan',
   'artikel',
@@ -134,6 +135,7 @@ const createDefaultPermissions = () => ({
     alumni: true,
     alumniEdit: true,
     bankSoal: true,
+    popupBanner: true,
     cta: true,
     lowongan: true,
     artikel: true,
@@ -146,6 +148,7 @@ const createDefaultPermissions = () => ({
     alumni: true,
     alumniEdit: false,
     bankSoal: true,
+    popupBanner: true,
     cta: true,
     lowongan: true,
     artikel: true,
@@ -158,6 +161,7 @@ const createDefaultPermissions = () => ({
     alumni: true,
     alumniEdit: false,
     bankSoal: true,
+    popupBanner: false,
     cta: false,
     lowongan: true,
     artikel: false,
@@ -170,6 +174,7 @@ const createDefaultPermissions = () => ({
     alumni: true,
     alumniEdit: false,
     bankSoal: true,
+    popupBanner: false,
     cta: false,
     lowongan: true,
     artikel: false,
@@ -287,6 +292,7 @@ const ensurePermissionIntegrity = () => {
           perms[key] = legacyAlumni ?? true
           break
         case 'cta':
+        case 'popupBanner':
         case 'artikel':
         case 'berita':
           perms[key] = legacyBeranda ?? true

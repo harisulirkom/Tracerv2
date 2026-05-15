@@ -25,6 +25,7 @@ import AdminTracerAccreditationView from './views/AdminTracerAccreditationView.v
 import AdminCtaView from './views/AdminCtaView.vue'
 import AdminLowonganView from './views/AdminLowonganView.vue'
 import AdminArtikelView from './views/AdminArtikelView.vue'
+import AdminPopupBannerView from './views/AdminPopupBannerView.vue'
 import ArtikelView from './views/ArtikelView.vue'
 import AdminUserView from './views/AdminUserView.vue'
 import AdminKuisionerResponsesView from './views/AdminKuisionerResponsesView.vue'
@@ -91,6 +92,7 @@ const routes = [
   { path: '/admin/alumni', name: 'AdminAlumni', component: AdminAlumniView, meta: { requiresAuth: true } },
   { path: '/admin/bank-soal', name: 'AdminBankSoal', component: AdminBankSoalView, meta: { requiresAuth: true } },
   { path: '/admin/cta', name: 'AdminCta', component: AdminCtaView, meta: { requiresAuth: true } },
+  { path: '/admin/popup-banner', name: 'AdminPopupBanner', component: AdminPopupBannerView, meta: { requiresAuth: true } },
   { path: '/admin/lowongan', name: 'AdminLowongan', component: AdminLowonganView, meta: { requiresAuth: true } },
   { path: '/admin/artikel', name: 'AdminArtikel', component: AdminArtikelView, meta: { requiresAuth: true } },
   { path: '/admin/user', name: 'AdminUser', component: AdminUserView, meta: { requiresAuth: true } },
@@ -236,6 +238,7 @@ router.beforeEach((to, from, next) => {
       { pattern: /^\/admin\/bank-soal/, key: 'bankSoal' },
       { pattern: /^\/admin\/alumni/, key: 'alumni' },
       { pattern: /^\/admin\/lowongan/, key: 'lowongan' },
+      { pattern: /^\/admin\/popup-banner/, key: 'popupBanner' },
       { pattern: /^\/admin\/cta/, key: 'cta' },
       { pattern: /^\/admin\/artikel/, key: 'artikel' },
       { pattern: /^\/admin\/berita/, key: 'berita' },
@@ -257,6 +260,7 @@ router.beforeEach((to, from, next) => {
               { key: 'alumni', path: '/admin/alumni' },
               { key: 'bankSoal', path: '/admin/bank-soal' },
               { key: 'lowongan', path: '/admin/lowongan' },
+              { key: 'popupBanner', path: '/admin/popup-banner' },
               { key: 'cta', path: '/admin/cta' },
               { key: 'artikel', path: '/admin/artikel' },
               { key: 'user', path: '/admin/user' },

@@ -192,6 +192,7 @@ const adminNav = [
   { label: 'Akreditasi tracer', route: '/admin/tracer-akreditasi', icon: 'akreditasi', permissionKey: 'kuisioner' },
   { label: 'Daftar alumni', route: '/admin/alumni', icon: 'alumni', permissionKey: 'alumni' },
   { label: 'Bank soal', route: '/admin/bank-soal', icon: 'bank', permissionKey: 'bankSoal' },
+  { label: 'Popup Banner', route: '/admin/popup-banner', icon: 'cta', permissionKey: 'popupBanner' },
   { label: 'CTA Slider', route: '/admin/cta', icon: 'cta', permissionKey: 'cta' },
   { label: 'Kelola lowongan', route: '/admin/lowongan', icon: 'lowongan', permissionKey: 'lowongan' },
   { label: 'Artikel & tips', route: '/admin/artikel', icon: 'artikel', permissionKey: 'artikel' },
