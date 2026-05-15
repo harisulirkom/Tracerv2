@@ -8,7 +8,11 @@ const banner = ref(null)
 const visible = ref(false)
 const loading = ref(false)
 
-const storageKey = computed(() => (banner.value?.id ? `dismissed_popup_banner_${banner.value.id}` : ''))
+const storageKey = computed(() => {
+  if (!banner.value?.id) return ''
+  const version = banner.value.updatedAt || banner.value.imageUrl || ''
+  return `dismissed_popup_banner_${banner.value.id}_${encodeURIComponent(version)}`
+})
 const isAdminRoute = computed(() => String(route.path || '').startsWith('/admin'))
 
 const hasDismissed = (key) => {

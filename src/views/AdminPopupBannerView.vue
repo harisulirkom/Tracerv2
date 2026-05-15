@@ -27,8 +27,26 @@ const form = reactive({
   removeImage: false,
 })
 
+const isCurrentlyVisible = (item) => {
+  if (!item?.isActive) return false
+  const now = Date.now()
+  const startsAt = item.startsAt ? new Date(item.startsAt).getTime() : null
+  const endsAt = item.endsAt ? new Date(item.endsAt).getTime() : null
+  if (startsAt && startsAt > now) return false
+  if (endsAt && endsAt < now) return false
+  return true
+}
+
 const editingBanner = computed(() => banners.value.find((item) => item.id === editingId.value) || null)
-const activeBanner = computed(() => banners.value.find((item) => item.isActive) || null)
+const activeBanner = computed(() => banners.value.find((item) => isCurrentlyVisible(item)) || null)
+
+const statusLabel = (item) => {
+  if (isCurrentlyVisible(item)) return 'Tampil'
+  if (!item?.isActive) return 'Nonaktif'
+  const startsAt = item.startsAt ? new Date(item.startsAt).getTime() : null
+  if (startsAt && startsAt > Date.now()) return 'Terjadwal'
+  return 'Berakhir'
+}
 
 const resetForm = () => {
   editingId.value = null
@@ -182,7 +200,7 @@ onMounted(loadBanners)
         </div>
         <div class="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm ring-1 ring-slate-100">
           <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Sedang aktif</p>
-          <p class="mt-1 font-semibold text-slate-900">{{ activeBanner?.title || 'Tidak ada banner aktif' }}</p>
+          <p class="mt-1 font-semibold text-slate-900">{{ activeBanner?.title || 'Tidak ada banner yang sedang tampil' }}</p>
         </div>
       </header>
 
@@ -306,9 +324,9 @@ onMounted(loadBanners)
                     <h3 class="font-semibold text-slate-900">{{ item.title }}</h3>
                     <span
                       class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                      :class="item.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'"
+                      :class="isCurrentlyVisible(item) ? 'bg-emerald-100 text-emerald-700' : item.isActive ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-600'"
                     >
-                      {{ item.isActive ? 'Aktif' : 'Nonaktif' }}
+                      {{ statusLabel(item) }}
                     </span>
                   </div>
                   <p v-if="item.description" class="mt-1 line-clamp-2 text-xs text-slate-600">{{ item.description }}</p>
