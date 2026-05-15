@@ -3,8 +3,8 @@ echo ========================================
 echo Starting Laravel Backend Server
 echo ========================================
 echo.
-echo Server will start on: http://localhost:8000
-echo API endpoint: http://localhost:8000/api
+echo Server will start on: http://127.0.0.1:8000
+echo API endpoint: http://127.0.0.1:8000/api
 echo.
 netstat -ano | findstr :3306 >nul
 if errorlevel 1 (
@@ -18,4 +18,4 @@ echo ========================================
 echo.
 
 cd C:\xampp\htdocs\ModulCDC
-php artisan serve --host=localhost --port=8000
+php artisan serve --host=127.0.0.1 --port=8000
