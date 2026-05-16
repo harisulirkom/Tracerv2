@@ -17,6 +17,7 @@ import PublicLayout from './views/PublicLayout.vue'
 import AdminProfileView from './views/AdminProfileView.vue'
 import AdminBeritaView from './views/AdminBeritaView.vue'
 import AdminAlumniView from './views/AdminAlumniView.vue'
+import AdminAlumniHubView from './views/AdminAlumniHubView.vue'
 import AdminKuisionerView from './views/AdminKuisionerView.vue'
 import AdminKuisionerQuestionsView from './views/AdminKuisionerQuestionsView.vue'
 import AdminBankSoalView from './views/AdminBankSoalView.vue'
@@ -94,6 +95,7 @@ const routes = [
   { path: '/admin/profile', name: 'AdminProfile', component: AdminProfileView, meta: { requiresAuth: true } },
   { path: '/admin/berita', name: 'AdminBerita', component: AdminBeritaView, meta: { requiresAuth: true } },
   { path: '/admin/alumni', name: 'AdminAlumni', component: AdminAlumniView, meta: { requiresAuth: true } },
+  { path: '/admin/alumni-hub', name: 'AdminAlumniHub', component: AdminAlumniHubView, meta: { requiresAuth: true } },
   { path: '/admin/bank-soal', name: 'AdminBankSoal', component: AdminBankSoalView, meta: { requiresAuth: true } },
   { path: '/admin/cta', name: 'AdminCta', component: AdminCtaView, meta: { requiresAuth: true } },
   { path: '/admin/popup-banner', name: 'AdminPopupBanner', component: AdminPopupBannerView, meta: { requiresAuth: true } },

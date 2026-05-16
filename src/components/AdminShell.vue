@@ -16,6 +16,7 @@ const adminNav = [
   { label: 'Kuisioner', route: '/admin/kuisioner', icon: 'kuisioner', permissionKey: 'kuisioner' },
   { label: 'Akreditasi tracer', route: '/admin/tracer-akreditasi', icon: 'akreditasi', permissionKey: 'kuisioner' },
   { label: 'Daftar alumni', route: '/admin/alumni', icon: 'alumni', permissionKey: 'alumni' },
+  { label: 'Konten Alumni', route: '/admin/alumni-hub', icon: 'alumni', permissionKey: 'alumni' },
   { label: 'Bank soal', route: '/admin/bank-soal', icon: 'bank', permissionKey: 'bankSoal' },
   { label: 'Popup Banner', route: '/admin/popup-banner', icon: 'cta', permissionKey: 'popupBanner' },
   { label: 'CTA Slider', route: '/admin/cta', icon: 'cta', permissionKey: 'cta' },
