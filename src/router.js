@@ -60,6 +60,7 @@ const routes = [
       { path: 'tentang', name: 'Tentang', component: TentangView },
       { path: 'struktur-organisasi', name: 'StrukturOrganisasi', component: StrukturOrganisasiView },
       { path: 'artikel', name: 'Artikel', component: ArtikelView },
+      { path: 'alumni', name: 'AlumniHub', component: AlumniHubView },
       { path: 'questionnaires', name: 'QuestionnaireList', component: QuestionnaireListView },
       { path: 'questionnaires/create', name: 'QuestionnaireCreate', component: QuestionnaireCreateView },
       {
@@ -76,8 +77,8 @@ const routes = [
         props: true,
       },
       { path: 'test-api', name: 'TestApi', component: TestApiView },
-      { path: 'coming-soon/alumni', name: 'AlumniHub', component: AlumniHubView },
-      { path: 'coming-soon/pojok-ikatan-alumni', name: 'PojokIkatanAlumni', component: AlumniHubView },
+      { path: 'coming-soon/alumni', redirect: '/alumni' },
+      { path: 'coming-soon/pojok-ikatan-alumni', redirect: '/alumni' },
       { path: 'coming-soon/:slug?', name: 'ComingSoon', component: UnderDevelopmentView },
       { path: 'login', name: 'Login', component: LoginView, meta: { guestOnly: true } },
     ],

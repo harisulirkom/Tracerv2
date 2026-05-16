@@ -63,11 +63,11 @@ const navItems = computed(() => [
   {
     key: 'alumni',
     name: 'Alumni',
-    to: '/coming-soon/alumni',
+    to: '/alumni',
     isNew: true,
     children: [
       { key: 'alumni-contribution', name: 'Kontribusi Alumni', desc: 'Program mentoring & donasi kampus.', to: '/coming-soon/kontribusi-alumni' },
-      { key: 'alumni-corner', name: 'Pojok Ikatan Alumni', desc: 'Kabar kegiatan & berita terkini alumni.', to: '/coming-soon/pojok-ikatan-alumni' },
+      { key: 'alumni-corner', name: 'Pojok Ikatan Alumni', desc: 'Kabar kegiatan & berita terkini alumni.', to: '/alumni' },
     ],
   },
   { key: 'articles', name: t('public.nav.articles'), to: '/artikel' },
