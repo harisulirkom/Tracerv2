@@ -5,17 +5,6 @@ import LoadingOverlay from '../components/LoadingOverlay.vue'
 import alumniHubService from '../services/alumniHubService'
 
 const defaultContent = {
-  hero: {
-    badge: 'Pojok Alumni',
-    headlinePrefix: 'Bersama',
-    headlineHighlight: 'Alumni',
-    headlineSuffix: 'Membangun Masa Depan yang Lebih Baik',
-    description: '',
-    imageUrl: '',
-    testimonial: '',
-    testimonialLabel: 'Alumni Community Hub',
-  },
-  features: [],
   gallery: {
     eyebrow: 'Kegiatan Alumni',
     title: 'Galeri Kegiatan Alumni',
@@ -26,50 +15,32 @@ const defaultContent = {
   agenda: {
     eyebrow: 'Agenda Komunitas',
     title: 'Agenda & Acara Alumni',
-    subtitle: '',
+    subtitle: 'Ikuti agenda terbaru untuk memperluas jejaring, mengembangkan diri, dan berkontribusi untuk kampus.',
     buttonLabel: 'Lihat Semua Acara',
     buttonUrl: '/coming-soon/acara-alumni',
     items: [],
   },
-  cta: {
-    title: '',
-    description: '',
-    buttonLabel: 'Perbarui Data Alumni',
-    buttonUrl: '/kuisioner/alumni',
-  },
 }
 
-const content = reactive(structuredClone(defaultContent))
+const content = reactive(JSON.parse(JSON.stringify(defaultContent)))
 const loading = ref(false)
 const saving = ref(false)
 const message = ref('')
 const error = ref('')
 
-const mergeContent = (incoming = {}) => ({
-  ...defaultContent,
-  ...incoming,
-  hero: { ...defaultContent.hero, ...(incoming.hero || {}) },
-  gallery: { ...defaultContent.gallery, ...(incoming.gallery || {}) },
-  agenda: { ...defaultContent.agenda, ...(incoming.agenda || {}) },
-  cta: { ...defaultContent.cta, ...(incoming.cta || {}) },
-  features: Array.isArray(incoming.features) ? incoming.features : [],
-})
+const clonePlain = (value) => JSON.parse(JSON.stringify(value))
 
-const applyContent = (incoming) => {
-  const next = mergeContent(incoming)
-  content.hero = next.hero
-  content.features = next.features
-  content.gallery = next.gallery
-  content.agenda = next.agenda
-  content.cta = next.cta
-}
-
-const addFeature = () => {
-  content.features.push({
-    title: '',
-    description: '',
-    icon: 'network',
-  })
+const applyContent = (incoming = {}) => {
+  content.gallery = {
+    ...defaultContent.gallery,
+    ...(incoming.gallery || {}),
+    items: Array.isArray(incoming.gallery?.items) ? incoming.gallery.items : [],
+  }
+  content.agenda = {
+    ...defaultContent.agenda,
+    ...(incoming.agenda || {}),
+    items: Array.isArray(incoming.agenda?.items) ? incoming.agenda.items : [],
+  }
 }
 
 const addGalleryItem = () => {
@@ -116,8 +87,11 @@ const saveContent = async () => {
   message.value = ''
   error.value = ''
   try {
-    await alumniHubService.updateAdminAlumniHubContent(structuredClone(content))
-    message.value = 'Konten halaman alumni berhasil disimpan.'
+    await alumniHubService.updateAdminAlumniHubContent({
+      gallery: clonePlain(content.gallery),
+      agenda: clonePlain(content.agenda),
+    })
+    message.value = 'Konten galeri dan agenda alumni berhasil disimpan.'
     await loadContent()
   } catch (err) {
     const validation = err?.response?.data?.errors
@@ -139,8 +113,8 @@ onMounted(loadContent)
       <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Konten Alumni</p>
-          <h1 class="mt-1 text-2xl font-semibold text-slate-900">Kelola halaman Pojok Alumni</h1>
-          <p class="mt-1 text-sm text-slate-500">Atur konten hero, fitur, galeri, agenda, dan CTA pada halaman publik /alumni.</p>
+          <h1 class="mt-1 text-2xl font-semibold text-slate-900">Kelola galeri dan kegiatan alumni</h1>
+          <p class="mt-1 text-sm text-slate-500">Admin hanya mengatur konten galeri dan agenda pada halaman publik /alumni.</p>
         </div>
         <a
           href="/alumni"
@@ -161,82 +135,16 @@ onMounted(loadContent)
 
       <form class="space-y-6" @submit.prevent="saveContent">
         <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-          <h2 class="text-base font-semibold text-slate-900">Hero</h2>
-          <div class="mt-4 grid gap-4 lg:grid-cols-2">
-            <label class="grid gap-1 text-sm font-semibold text-slate-700">
-              Badge
-              <input v-model="content.hero.badge" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
-            </label>
-            <label class="grid gap-1 text-sm font-semibold text-slate-700">
-              Kata highlight
-              <input v-model="content.hero.headlineHighlight" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
-            </label>
-            <label class="grid gap-1 text-sm font-semibold text-slate-700">
-              Headline awal
-              <input v-model="content.hero.headlinePrefix" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
-            </label>
-            <label class="grid gap-1 text-sm font-semibold text-slate-700">
-              Headline lanjutan
-              <input v-model="content.hero.headlineSuffix" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
-            </label>
-            <label class="grid gap-1 text-sm font-semibold text-slate-700 lg:col-span-2">
-              Deskripsi
-              <textarea v-model="content.hero.description" rows="3" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400"></textarea>
-            </label>
-            <label class="grid gap-1 text-sm font-semibold text-slate-700 lg:col-span-2">
-              URL gambar hero
-              <input v-model="content.hero.imageUrl" placeholder="https://..." class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
-            </label>
-            <label class="grid gap-1 text-sm font-semibold text-slate-700">
-              Testimonial floating
-              <input v-model="content.hero.testimonial" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
-            </label>
-            <label class="grid gap-1 text-sm font-semibold text-slate-700">
-              Label testimonial
-              <input v-model="content.hero.testimonialLabel" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
-            </label>
-          </div>
-        </section>
-
-        <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="text-base font-semibold text-slate-900">Fitur mini hero</h2>
-            <button type="button" class="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800" @click="addFeature">
-              Tambah fitur
-            </button>
-          </div>
-          <div class="mt-4 grid gap-4 lg:grid-cols-3">
-            <article v-for="(item, index) in content.features" :key="index" class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <div class="flex justify-end">
-                <button type="button" class="text-xs font-semibold text-rose-600" @click="removeAt(content.features, index)">Hapus</button>
-              </div>
-              <label class="mt-2 grid gap-1 text-sm font-semibold text-slate-700">
-                Judul
-                <input v-model="item.title" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
-              </label>
-              <label class="mt-3 grid gap-1 text-sm font-semibold text-slate-700">
-                Deskripsi
-                <textarea v-model="item.description" rows="3" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400"></textarea>
-              </label>
-              <label class="mt-3 grid gap-1 text-sm font-semibold text-slate-700">
-                Icon
-                <select v-model="item.icon" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400">
-                  <option value="network">Network</option>
-                  <option value="story">Story</option>
-                  <option value="impact">Impact</option>
-                </select>
-              </label>
-            </article>
-          </div>
-        </section>
-
-        <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="text-base font-semibold text-slate-900">Galeri kegiatan</h2>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-base font-semibold text-slate-900">Galeri kegiatan alumni</h2>
+              <p class="mt-1 text-xs text-slate-500">Foto pertama akan tampil sebagai foto utama besar.</p>
+            </div>
             <button type="button" class="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800" @click="addGalleryItem">
               Tambah foto
             </button>
           </div>
+
           <div class="mt-4 grid gap-4 lg:grid-cols-2">
             <label class="grid gap-1 text-sm font-semibold text-slate-700">
               Eyebrow
@@ -255,6 +163,7 @@ onMounted(loadContent)
               <input v-model="content.gallery.buttonUrl" class="rounded-xl border border-slate-200 px-3 py-2 font-normal outline-none focus:border-slate-400" />
             </label>
           </div>
+
           <div class="mt-5 space-y-4">
             <article v-for="(item, index) in content.gallery.items" :key="index" class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <div class="mb-3 flex items-center justify-between">
@@ -273,12 +182,16 @@ onMounted(loadContent)
         </section>
 
         <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="text-base font-semibold text-slate-900">Agenda & acara</h2>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-base font-semibold text-slate-900">Agenda & acara alumni</h2>
+              <p class="mt-1 text-xs text-slate-500">Konten ini tampil sebagai carousel kegiatan pada halaman alumni.</p>
+            </div>
             <button type="button" class="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800" @click="addAgendaItem">
               Tambah agenda
             </button>
           </div>
+
           <div class="mt-4 grid gap-4 lg:grid-cols-2">
             <input v-model="content.agenda.eyebrow" placeholder="Eyebrow" class="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-400" />
             <input v-model="content.agenda.title" placeholder="Judul section" class="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-400" />
@@ -286,6 +199,7 @@ onMounted(loadContent)
             <input v-model="content.agenda.buttonUrl" placeholder="Link tombol" class="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-400" />
             <textarea v-model="content.agenda.subtitle" rows="2" placeholder="Subtitle" class="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-400 lg:col-span-2"></textarea>
           </div>
+
           <div class="mt-5 space-y-4">
             <article v-for="(item, index) in content.agenda.items" :key="index" class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <div class="mb-3 flex items-center justify-between">
@@ -305,23 +219,13 @@ onMounted(loadContent)
           </div>
         </section>
 
-        <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
-          <h2 class="text-base font-semibold text-slate-900">CTA bawah</h2>
-          <div class="mt-4 grid gap-4 lg:grid-cols-2">
-            <input v-model="content.cta.title" placeholder="Judul CTA" class="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-400 lg:col-span-2" />
-            <textarea v-model="content.cta.description" rows="2" placeholder="Deskripsi CTA" class="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-400 lg:col-span-2"></textarea>
-            <input v-model="content.cta.buttonLabel" placeholder="Label tombol" class="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-400" />
-            <input v-model="content.cta.buttonUrl" placeholder="Link tombol" class="rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-slate-400" />
-          </div>
-        </section>
-
         <div class="sticky bottom-4 z-10 flex justify-end">
           <button
             type="submit"
             class="rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             :disabled="saving"
           >
-            {{ saving ? 'Menyimpan...' : 'Simpan konten alumni' }}
+            {{ saving ? 'Menyimpan...' : 'Simpan galeri & kegiatan' }}
           </button>
         </div>
       </form>
