@@ -27,6 +27,7 @@ import AdminLowonganView from './views/AdminLowonganView.vue'
 import AdminArtikelView from './views/AdminArtikelView.vue'
 import AdminPopupBannerView from './views/AdminPopupBannerView.vue'
 import ArtikelView from './views/ArtikelView.vue'
+import AlumniHubView from './views/AlumniHubView.vue'
 import AdminUserView from './views/AdminUserView.vue'
 import AdminKuisionerResponsesView from './views/AdminKuisionerResponsesView.vue'
 import NotFoundView from './views/NotFoundView.vue'
@@ -75,6 +76,8 @@ const routes = [
         props: true,
       },
       { path: 'test-api', name: 'TestApi', component: TestApiView },
+      { path: 'coming-soon/alumni', name: 'AlumniHub', component: AlumniHubView },
+      { path: 'coming-soon/pojok-ikatan-alumni', name: 'PojokIkatanAlumni', component: AlumniHubView },
       { path: 'coming-soon/:slug?', name: 'ComingSoon', component: UnderDevelopmentView },
       { path: 'login', name: 'Login', component: LoginView, meta: { guestOnly: true } },
     ],
