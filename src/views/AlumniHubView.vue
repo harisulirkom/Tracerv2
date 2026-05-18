@@ -119,6 +119,7 @@ const defaultContent = {
 const content = ref(defaultContent)
 const galleryPage = ref(0)
 const previewImage = ref(null)
+const selectedAgenda = ref(null)
 
 const mergeContent = (base, incoming) => ({
   ...base,
@@ -176,6 +177,14 @@ const openPreview = (item) => {
 
 const closePreview = () => {
   previewImage.value = null
+}
+
+const openAgenda = (item) => {
+  selectedAgenda.value = item
+}
+
+const closeAgenda = () => {
+  selectedAgenda.value = null
 }
 
 onMounted(async () => {
@@ -280,12 +289,6 @@ onMounted(async () => {
               </svg>
             </button>
           </div>
-          <a
-            :href="gallery.buttonUrl"
-            class="inline-flex items-center justify-center rounded-full border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
-          >
-            {{ gallery.buttonLabel }}
-          </a>
         </div>
       </div>
 
@@ -363,8 +366,14 @@ onMounted(async () => {
         <article
           v-for="item in agendaItems"
           :key="item.title"
-          class="group min-w-[290px] snap-start overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-lg shadow-sky-100/60 transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-sky-100 sm:min-w-[340px]"
+          class="group relative min-w-[290px] snap-start overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-lg shadow-sky-100/60 transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-sky-100 sm:min-w-[340px]"
         >
+          <button
+            type="button"
+            class="absolute inset-0 z-10"
+            :aria-label="`Lihat detail ${item.title || 'acara alumni'}`"
+            @click="openAgenda(item)"
+          ></button>
           <div class="relative h-44 overflow-hidden">
             <img :src="item.imageUrl" :alt="item.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
             <div :class="['absolute left-4 top-4 rounded-2xl bg-gradient-to-r px-4 py-2 text-sm font-bold text-white shadow-lg', item.color]">
@@ -447,6 +456,60 @@ onMounted(async () => {
           <p v-if="previewImage.description || previewImage.label" class="mt-1 text-sm text-slate-500">
             {{ previewImage.description || previewImage.label }}
           </p>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="selectedAgenda"
+      class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      @click.self="closeAgenda"
+    >
+      <div class="relative max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-2xl shadow-slate-950/40">
+        <button
+          type="button"
+          class="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-lg transition hover:bg-white"
+          aria-label="Tutup detail acara"
+          @click="closeAgenda"
+        >
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+        <div class="relative h-72 overflow-hidden bg-slate-100">
+          <img v-if="selectedAgenda.imageUrl" :src="selectedAgenda.imageUrl" :alt="selectedAgenda.title" class="h-full w-full object-cover" />
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/10 to-transparent"></div>
+          <div :class="['absolute left-5 top-5 rounded-2xl bg-gradient-to-r px-4 py-2 text-sm font-bold text-white shadow-lg', selectedAgenda.color]">
+            {{ selectedAgenda.date }}
+          </div>
+          <div class="absolute inset-x-0 bottom-0 p-6 text-white">
+            <span class="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-bold backdrop-blur">{{ selectedAgenda.tag }}</span>
+            <h3 class="mt-3 text-2xl font-semibold leading-tight">{{ selectedAgenda.title }}</h3>
+          </div>
+        </div>
+        <div class="space-y-5 p-6">
+          <p v-if="selectedAgenda.description" class="text-sm leading-7 text-slate-600">{{ selectedAgenda.description }}</p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-2xl bg-sky-50 px-4 py-3">
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-700">Waktu</p>
+              <p class="mt-1 font-semibold text-slate-900">{{ selectedAgenda.time || '-' }}</p>
+            </div>
+            <div class="rounded-2xl bg-emerald-50 px-4 py-3">
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Lokasi</p>
+              <p class="mt-1 font-semibold text-slate-900">{{ selectedAgenda.place || '-' }}</p>
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <button
+              type="button"
+              class="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              @click="closeAgenda"
+            >
+              Tutup
+            </button>
+          </div>
         </div>
       </div>
     </div>

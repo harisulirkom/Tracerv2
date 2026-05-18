@@ -29,6 +29,7 @@ import AdminArtikelView from './views/AdminArtikelView.vue'
 import AdminPopupBannerView from './views/AdminPopupBannerView.vue'
 import ArtikelView from './views/ArtikelView.vue'
 import AlumniHubView from './views/AlumniHubView.vue'
+import AlumniEventsView from './views/AlumniEventsView.vue'
 import AdminUserView from './views/AdminUserView.vue'
 import AdminKuisionerResponsesView from './views/AdminKuisionerResponsesView.vue'
 import NotFoundView from './views/NotFoundView.vue'
@@ -62,6 +63,7 @@ const routes = [
       { path: 'struktur-organisasi', name: 'StrukturOrganisasi', component: StrukturOrganisasiView },
       { path: 'artikel', name: 'Artikel', component: ArtikelView },
       { path: 'alumni', name: 'AlumniHub', component: AlumniHubView },
+      { path: 'alumni/acara', name: 'AlumniEvents', component: AlumniEventsView },
       { path: 'questionnaires', name: 'QuestionnaireList', component: QuestionnaireListView },
       { path: 'questionnaires/create', name: 'QuestionnaireCreate', component: QuestionnaireCreateView },
       {
@@ -80,6 +82,7 @@ const routes = [
       { path: 'test-api', name: 'TestApi', component: TestApiView },
       { path: 'coming-soon/alumni', redirect: '/alumni' },
       { path: 'coming-soon/pojok-ikatan-alumni', redirect: '/alumni' },
+      { path: 'coming-soon/acara-alumni', name: 'AlumniEventsLegacy', component: AlumniEventsView },
       { path: 'coming-soon/:slug?', name: 'ComingSoon', component: UnderDevelopmentView },
       { path: 'login', name: 'Login', component: LoginView, meta: { guestOnly: true } },
     ],
