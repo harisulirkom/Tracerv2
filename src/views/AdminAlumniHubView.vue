@@ -57,6 +57,7 @@ const form = reactive({
   category: '',
   description: '',
   imageUrl: '',
+  imageFile: null,
   moreLabel: '',
 })
 
@@ -86,6 +87,7 @@ const resetForm = () => {
   form.category = ''
   form.description = ''
   form.imageUrl = ''
+  form.imageFile = null
   form.moreLabel = ''
 }
 
@@ -203,6 +205,24 @@ const saveModal = async () => {
     return
   }
 
+  saving.value = true
+  error.value = ''
+  let imageUrl = form.imageUrl.trim()
+  try {
+    if (form.imageFile) {
+      const uploaded = await alumniHubService.uploadAlumniHubImage(form.imageFile)
+      imageUrl = uploaded?.url || uploaded?.data?.url || imageUrl
+    }
+  } catch (err) {
+    const validation = err?.response?.data?.errors
+    error.value =
+      validation ? Object.values(validation).flat().join(' ') : err?.response?.data?.message || err?.message || 'Gagal mengupload gambar.'
+    saving.value = false
+    return
+  } finally {
+    if (saving.value) saving.value = false
+  }
+
   const nextItem =
     modal.type === 'gallery'
       ? {
@@ -210,7 +230,7 @@ const saveModal = async () => {
           label: form.date.trim(),
           category: form.category.trim(),
           description: form.description.trim(),
-          imageUrl: form.imageUrl.trim(),
+          imageUrl,
           moreLabel: form.moreLabel.trim(),
         }
       : {
@@ -221,7 +241,7 @@ const saveModal = async () => {
           tag: form.category.trim(),
           color: eventColor(form.category.trim()),
           description: form.description.trim(),
-          imageUrl: form.imageUrl.trim(),
+          imageUrl,
         }
 
   const target = modal.type === 'gallery' ? content.gallery.items : content.agenda.items
@@ -265,11 +285,8 @@ const processFile = (file) => {
     error.value = 'Ukuran gambar maksimal 2 MB.'
     return
   }
-  const reader = new FileReader()
-  reader.onload = () => {
-    form.imageUrl = String(reader.result || '')
-  }
-  reader.readAsDataURL(file)
+  form.imageFile = file
+  form.imageUrl = URL.createObjectURL(file)
 }
 
 const handleUpload = (event) => {
@@ -632,7 +649,7 @@ onMounted(loadContent)
             </label>
             <label class="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
               URL gambar
-              <input v-model="form.imageUrl" placeholder="https://..." class="rounded-2xl border border-slate-200 px-4 py-3 font-normal outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" />
+              <input v-model="form.imageUrl" placeholder="https://..." class="rounded-2xl border border-slate-200 px-4 py-3 font-normal outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-50" @input="form.imageFile = null" />
             </label>
             <label v-if="modal.type === 'gallery'" class="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
               Label tambahan
