@@ -10,6 +10,10 @@ import { useArticles } from '../stores/articles'
 import { useAuth } from '../stores/auth'
 import dashboardService from '@/services/dashboardService'
 import { DASHBOARD_TIMEOUT_MS } from '@/services/requestTimeout'
+import pengumpulanDataIcon from '@/assets/01_pengumpulan_data_cepat.svg'
+import analitikLaporanIcon from '@/assets/02_analitik_laporan.svg'
+import integrasiEksporIcon from '@/assets/03_integrasi_ekspor.svg'
+import keamananDataIcon from '@/assets/04_keamanan_data.svg'
 
 const { slides, fetchSlides } = useCtaSlides()
 const auth = useAuth()
@@ -1345,6 +1349,7 @@ watch(
 )
 
 const features = computed(() => homeCopy.value.features)
+const serviceIcons = [pengumpulanDataIcon, analitikLaporanIcon, integrasiEksporIcon, keamananDataIcon]
 const partnerSection = computed(() => homeExtraCopy.value.partners)
 const testimonials = computed(() => homeExtraCopy.value.testimonials || [])
 const heroSlideLabel = (idx) => `${homeCopy.value.labels.slideSelect} ${idx + 1}`
@@ -1671,7 +1676,14 @@ onBeforeUnmount(() => {
           :style="{ '--stagger-index': featureIdx }"
         >
           <div class="flex items-center gap-3">
-            <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-sky-400" />
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+              <img
+                :src="serviceIcons[featureIdx]"
+                :alt="feature.title"
+                class="h-9 w-9 object-contain"
+                loading="lazy"
+              >
+            </div>
             <div class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
               {{ feature.badge }}
             </div>

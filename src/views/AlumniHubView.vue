@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import alumniHubService from '../services/alumniHubService'
+import alumniHeroImage from '@/assets/Alumni.png'
 
 const defaultContent = {
   hero: {
@@ -10,7 +11,7 @@ const defaultContent = {
     headlineSuffix: 'Membangun Masa Depan yang Lebih Baik',
     description:
       'Alumni Community Hub menjadi ruang digital untuk mempertemukan lulusan, kampus, dan mitra dalam ekosistem kolaborasi yang hangat, produktif, dan berdampak bagi generasi berikutnya.',
-    imageUrl: 'https://images.unsplash.com/photo-1543269865-cbf427effbad?auto=format&fit=crop&w=1200&q=80',
+    imageUrl: alumniHeroImage,
     testimonial: 'Alumni hebat adalah inspirasi bagi generasi selanjutnya.',
     testimonialLabel: 'Alumni Community Hub',
   },
@@ -124,7 +125,7 @@ const selectedAgenda = ref(null)
 const mergeContent = (base, incoming) => ({
   ...base,
   ...(incoming || {}),
-  hero: { ...base.hero, ...(incoming?.hero || {}) },
+  hero: { ...base.hero, ...(incoming?.hero || {}), imageUrl: alumniHeroImage },
   gallery: { ...base.gallery, ...(incoming?.gallery || {}) },
   agenda: { ...base.agenda, ...(incoming?.agenda || {}) },
   cta: { ...base.cta, ...(incoming?.cta || {}) },
@@ -199,13 +200,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="relative overflow-hidden pb-16 pt-5 text-slate-900">
-    <div class="pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-sky-200/45 blur-3xl"></div>
+  <div class="alumni-hub-page relative -mt-12 overflow-hidden pb-16 pt-0 text-slate-900 sm:-mt-14 lg:-mt-16">
+    <div class="pointer-events-none absolute -top-44 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-sky-200/45 blur-3xl"></div>
     <div class="pointer-events-none absolute right-0 top-80 h-80 w-80 rounded-full bg-emerald-200/35 blur-3xl"></div>
 
-    <section class="relative grid items-center gap-12 py-10 lg:grid-cols-[1.02fr_0.98fr] lg:py-16">
+    <section class="relative grid items-center gap-12 pb-10 pt-0 lg:grid-cols-[1.02fr_0.98fr] lg:pb-16 lg:pt-0">
       <div>
-        <div class="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-sky-700 shadow-sm shadow-sky-100/80 backdrop-blur">
+        <div class="mt-6 inline-flex items-center gap-2 rounded-full border border-sky-100 bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-sky-700 shadow-sm shadow-sky-100/80 backdrop-blur sm:mt-8">
           <span class="h-2 w-2 rounded-full bg-gradient-to-r from-sky-500 to-emerald-400"></span>
           {{ hero.badge }}
         </div>
