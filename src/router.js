@@ -43,6 +43,7 @@ import TracerAttemptDetailView from './views/Tracer/AttemptDetail.vue'
 import { useAuth } from './stores/auth'
 import { useUserManagement } from './stores/userManagement'
 import TracerDashboardView from './views/Dashboard/TracerDashboard.vue'
+import { applyRouteSeo } from './services/seo'
 
 const routes = [
   {
@@ -286,6 +287,10 @@ router.beforeEach((to, from, next) => {
   }
 
   next()
+})
+
+router.afterEach((to) => {
+  applyRouteSeo(to)
 })
 
 export default router
