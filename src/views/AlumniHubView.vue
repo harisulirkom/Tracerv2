@@ -117,6 +117,8 @@ const defaultContent = {
 }
 
 const content = ref(defaultContent)
+const galleryPage = ref(0)
+const previewImage = ref(null)
 
 const mergeContent = (base, incoming) => ({
   ...base,
@@ -140,9 +142,15 @@ const heroFeatures = computed(() => {
   return items.length ? items : defaultContent.features
 })
 const gallery = computed(() => content.value.gallery || defaultContent.gallery)
-const galleryImages = computed(() => {
+const allGalleryImages = computed(() => {
   const items = gallery.value.items || []
   return items.length ? items : defaultContent.gallery.items
+})
+const galleryPageSize = 5
+const galleryPageCount = computed(() => Math.max(1, Math.ceil(allGalleryImages.value.length / galleryPageSize)))
+const galleryImages = computed(() => {
+  const start = galleryPage.value * galleryPageSize
+  return allGalleryImages.value.slice(start, start + galleryPageSize)
 })
 const agenda = computed(() => content.value.agenda || defaultContent.agenda)
 const agendaItems = computed(() => {
@@ -151,11 +159,30 @@ const agendaItems = computed(() => {
 })
 const cta = computed(() => content.value.cta || defaultContent.cta)
 const iconPath = (icon) => iconPaths[icon] || icon || iconPaths.network
+const canNavigateGallery = computed(() => allGalleryImages.value.length > galleryPageSize)
+
+const setGalleryPage = (page) => {
+  if (!galleryPageCount.value) {
+    galleryPage.value = 0
+    return
+  }
+  galleryPage.value = (page + galleryPageCount.value) % galleryPageCount.value
+}
+
+const openPreview = (item) => {
+  if (!item?.imageUrl) return
+  previewImage.value = item
+}
+
+const closePreview = () => {
+  previewImage.value = null
+}
 
 onMounted(async () => {
   try {
     const response = await alumniHubService.getAlumniHubContent()
     content.value = mergeContent(defaultContent, response?.content || response)
+    galleryPage.value = 0
   } catch (error) {
     content.value = defaultContent
   }
@@ -229,16 +256,47 @@ onMounted(async () => {
           <p class="text-xs font-bold uppercase tracking-[0.24em] text-sky-600">{{ gallery.eyebrow }}</p>
           <h2 class="mt-2 text-3xl font-semibold text-slate-950">{{ gallery.title }}</h2>
         </div>
-        <a
-          :href="gallery.buttonUrl"
-          class="inline-flex items-center justify-center rounded-full border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
-        >
-          {{ gallery.buttonLabel }}
-        </a>
+        <div class="flex flex-wrap items-center gap-3">
+          <div v-if="canNavigateGallery" class="flex items-center gap-2 rounded-full border border-sky-100 bg-white/80 p-1 shadow-sm shadow-sky-100">
+            <button
+              type="button"
+              class="flex h-10 w-10 items-center justify-center rounded-full text-sky-700 transition hover:bg-sky-50"
+              aria-label="Galeri sebelumnya"
+              @click="setGalleryPage(galleryPage - 1)"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </button>
+            <span class="min-w-12 text-center text-xs font-bold text-slate-500">{{ galleryPage + 1 }} / {{ galleryPageCount }}</span>
+            <button
+              type="button"
+              class="flex h-10 w-10 items-center justify-center rounded-full text-sky-700 transition hover:bg-sky-50"
+              aria-label="Galeri berikutnya"
+              @click="setGalleryPage(galleryPage + 1)"
+            >
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </div>
+          <a
+            :href="gallery.buttonUrl"
+            class="inline-flex items-center justify-center rounded-full border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
+          >
+            {{ gallery.buttonLabel }}
+          </a>
+        </div>
       </div>
 
       <div class="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <article class="group relative min-h-[430px] overflow-hidden rounded-[28px]">
+        <article class="group relative min-h-[430px] overflow-hidden rounded-[28px] focus-within:ring-4 focus-within:ring-sky-100">
+          <button
+            type="button"
+            class="absolute inset-0 z-10"
+            :aria-label="`Preview ${galleryImages[0]?.title || 'foto galeri'}`"
+            @click="openPreview(galleryImages[0])"
+          ></button>
           <img :src="galleryImages[0].imageUrl" :alt="galleryImages[0].title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           <div class="absolute left-5 top-5 rounded-full bg-white/80 px-4 py-2 text-xs font-bold text-sky-700 shadow-lg backdrop-blur">
             {{ galleryImages[0].label }}
@@ -253,8 +311,14 @@ onMounted(async () => {
           <article
             v-for="item in galleryImages.slice(1)"
             :key="item.title"
-            class="group relative min-h-[205px] overflow-hidden rounded-[26px] bg-slate-100"
+            class="group relative min-h-[205px] overflow-hidden rounded-[26px] bg-slate-100 focus-within:ring-4 focus-within:ring-sky-100"
           >
+            <button
+              type="button"
+              class="absolute inset-0 z-10"
+              :aria-label="`Preview ${item.title || 'foto galeri'}`"
+              @click="openPreview(item)"
+            ></button>
             <img :src="item.imageUrl" :alt="item.title" class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
             <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent opacity-80 transition group-hover:opacity-95"></div>
             <div class="absolute inset-x-0 bottom-0 p-4 text-white">
@@ -263,6 +327,18 @@ onMounted(async () => {
             </div>
           </article>
         </div>
+      </div>
+
+      <div v-if="canNavigateGallery" class="mt-5 flex items-center justify-center gap-2">
+        <button
+          v-for="page in galleryPageCount"
+          :key="page"
+          type="button"
+          class="h-2.5 rounded-full transition-all"
+          :class="page - 1 === galleryPage ? 'w-8 bg-gradient-to-r from-sky-500 to-emerald-400' : 'w-2.5 bg-slate-200 hover:bg-sky-200'"
+          :aria-label="`Buka halaman galeri ${page}`"
+          @click="setGalleryPage(page - 1)"
+        ></button>
       </div>
     </section>
 
@@ -344,5 +420,35 @@ onMounted(async () => {
         </div>
       </div>
     </section>
+
+    <div
+      v-if="previewImage"
+      class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/75 px-4 py-6 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      @click.self="closePreview"
+    >
+      <div class="relative max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-2xl shadow-slate-950/40">
+        <button
+          type="button"
+          class="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-lg transition hover:bg-white"
+          aria-label="Tutup preview foto"
+          @click="closePreview"
+        >
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M6 6l12 12M18 6 6 18" />
+          </svg>
+        </button>
+        <div class="max-h-[78vh] bg-slate-950">
+          <img :src="previewImage.imageUrl" :alt="previewImage.title" class="mx-auto max-h-[78vh] w-auto max-w-full object-contain" />
+        </div>
+        <div class="bg-white px-5 py-4 sm:px-6">
+          <p class="text-lg font-semibold text-slate-950">{{ previewImage.title || 'Foto galeri' }}</p>
+          <p v-if="previewImage.description || previewImage.label" class="mt-1 text-sm text-slate-500">
+            {{ previewImage.description || previewImage.label }}
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
