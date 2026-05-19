@@ -1525,7 +1525,9 @@ const runEmailBlast = async (targets = []) => {
 
 const pollBlastProgress = async (blastId, totalTargets = 0) => {
   for (let attempt = 0; attempt < BLAST_PROGRESS_MAX_ATTEMPTS; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, BLAST_PROGRESS_INTERVAL_MS))
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, BLAST_PROGRESS_INTERVAL_MS))
+    }
 
     const progress = await getBlastEmailProgress(blastId)
     const summary = progress?.summary || {}

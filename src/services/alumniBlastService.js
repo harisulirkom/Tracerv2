@@ -4,7 +4,14 @@ export const generateSurveyLink = (payload) => post('/admin/generate-survey-link
 
 export const blastEmail = (payload) => post('/admin/alumni/blast-email', payload)
 
-export const getBlastEmailProgress = (blastId) => get(`/admin/alumni/blast-email/${blastId}`)
+export const getBlastEmailProgress = (blastId) =>
+  get(`/admin/alumni/blast-email/${blastId}`, {
+    params: { _t: Date.now() },
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  })
 
 export const getEmailTemplate = (key = 'alumni-blast') => get(`/admin/email-templates/${key}`)
 
