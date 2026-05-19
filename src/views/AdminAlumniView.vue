@@ -9,6 +9,7 @@ import LoadingOverlay from '../components/LoadingOverlay.vue'
 import {
   blastEmail,
   generateSurveyLink,
+  getBlastEmailProgress,
   getEmailTemplate,
   updateEmailTemplate,
 } from '../services/alumniBlastService'
@@ -57,7 +58,8 @@ const showSiakadWarning = ref(false)
 const emailTemplateOpen = ref(false)
 const sendLinkMenuOpen = ref(false)
 const blastLoading = ref(false)
-const pageLoading = computed(() => alumni.value.loading || importLoading.value || blastLoading.value)
+const pageLoading = computed(() => alumni.value.loading || importLoading.value)
+const blastProgress = ref(null)
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 30 // 30 hari
 const pageSizeOptions = ['all', 10, 50, 100, 200]
 const pageSize = ref(10)
@@ -75,6 +77,15 @@ const editError = ref('')
 const syncLoading = ref(false)
 const confirmSaveOpen = ref(false)
 const confirmTemplateSaveOpen = ref(false)
+const BLAST_PROGRESS_INTERVAL_MS = 1500
+const BLAST_PROGRESS_MAX_ATTEMPTS = 240
+const blastProgressPercent = computed(() => {
+  if (!blastProgress.value) return 0
+  const total = Number(blastProgress.value.total || 0)
+  const processed = Number(blastProgress.value.processed || 0)
+  if (total <= 0) return 0
+  return Math.max(0, Math.min(100, Math.floor((processed / total) * 100)))
+})
 
 const currentRole = computed(() => auth.user.value?.role || '')
 const rolePermissions = computed(() => permissions?.[currentRole.value] || {})
@@ -1462,7 +1473,14 @@ const runEmailBlast = async (targets = []) => {
   }
 
   blastLoading.value = true
-  message.value = 'Mengirim email via server...'
+  blastProgress.value = {
+    status: 'starting',
+    total: targets.length,
+    processed: 0,
+    sent: 0,
+    failed: 0,
+  }
+  message.value = 'Menyiapkan pengiriman email...'
   error.value = ''
   try {
     const payload = {
@@ -1473,12 +1491,33 @@ const runEmailBlast = async (targets = []) => {
       base_url: window.location.origin,
     }
     const response = await blastEmail(payload)
+    const blastId = response?.blast_id
+    if (blastId) {
+      blastProgress.value = {
+        status: 'queued',
+        total: targets.length,
+        processed: 0,
+        sent: 0,
+        failed: 0,
+      }
+      message.value = 'Pengiriman email sedang diproses di background.'
+      await pollBlastProgress(blastId, targets.length)
+      return
+    }
+
     const summary = response?.summary || {}
     const sentList = response?.sent || []
     const failedList = response?.failed || []
 
     if (sentList.length) {
       markSent(sentList.map((item) => item.nim))
+    }
+    blastProgress.value = {
+      status: 'completed',
+      total: summary.total || targets.length,
+      processed: summary.total || targets.length,
+      sent: summary.sent || sentList.length,
+      failed: summary.failed || failedList.length,
     }
 
     message.value = `Email terkirim: ${summary.sent || sentList.length}, gagal: ${summary.failed || failedList.length}.`
@@ -1494,9 +1533,68 @@ const runEmailBlast = async (targets = []) => {
     const detail = e?.response?.data?.message || e?.message || 'Gagal mengirim email.'
     error.value = detail
     message.value = ''
+    if (blastProgress.value) {
+      blastProgress.value = {
+        ...blastProgress.value,
+        status: 'failed',
+      }
+    }
   } finally {
     blastLoading.value = false
   }
+}
+
+const pollBlastProgress = async (blastId, totalTargets = 0) => {
+  for (let attempt = 0; attempt < BLAST_PROGRESS_MAX_ATTEMPTS; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, BLAST_PROGRESS_INTERVAL_MS))
+
+    const progress = await getBlastEmailProgress(blastId)
+    const summary = progress?.summary || {}
+    const sentList = progress?.sent || []
+    const failedList = progress?.failed || []
+    const processed = progress?.processed ?? ((summary.sent || 0) + (summary.failed || 0))
+    const total = progress?.total || summary.total || totalTargets
+    const status = progress?.status || 'processing'
+    blastProgress.value = {
+      status,
+      total,
+      processed,
+      sent: summary.sent || sentList.length,
+      failed: summary.failed || failedList.length,
+    }
+
+    if (sentList.length) {
+      markSent(sentList.map((item) => item.nim))
+    }
+
+    message.value = 'Pengiriman email sedang diproses di background.'
+
+    if (failedList.length) {
+      const detail = failedList
+        .slice(0, 3)
+        .map((item) => `${item.nim || '-'}: ${item.reason || 'gagal'}`)
+        .join('; ')
+      error.value = `Sebagian email gagal. ${detail}${failedList.length > 3 ? '...' : ''}`
+    }
+
+    if (status === 'completed') {
+      blastProgress.value = {
+        status,
+        total,
+        processed: total,
+        sent: summary.sent || sentList.length,
+        failed: summary.failed || failedList.length,
+      }
+      message.value = `Email terkirim: ${summary.sent || sentList.length}, gagal: ${summary.failed || failedList.length}.`
+      return
+    }
+
+    if (status === 'failed') {
+      throw new Error(progress?.message || 'Pengiriman email gagal diproses di server.')
+    }
+  }
+
+  throw new Error('Pengiriman email masih diproses. Cek kembali beberapa saat lagi atau pastikan queue worker aktif.')
 }
 
 const sendEmail = async (alumniItem) => {
@@ -1703,7 +1801,37 @@ const showingRange = computed(() => {
               </select>
             </div>
           </div>
-          <p v-if="message" class="mt-2 text-xs font-semibold text-emerald-600">{{ message }}</p>
+          <div
+            v-if="blastProgress"
+            class="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 shadow-sm shadow-emerald-100/50"
+          >
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-xs font-semibold text-emerald-700">
+                {{ message || 'Pengiriman email sedang diproses.' }}
+              </p>
+              <p class="text-xs font-bold text-emerald-700">
+                {{ blastProgress.processed }}/{{ blastProgress.total }} email - {{ blastProgressPercent }}%
+              </p>
+            </div>
+            <div class="mt-2 h-3 overflow-hidden rounded-full bg-white ring-1 ring-emerald-100">
+              <div
+                class="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 transition-all duration-500 ease-out"
+                :style="{ width: `${blastProgressPercent}%` }"
+              ></div>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
+              <span class="rounded-full bg-white px-2.5 py-1 text-emerald-700 ring-1 ring-emerald-100">
+                Terkirim: {{ blastProgress.sent }}
+              </span>
+              <span class="rounded-full bg-white px-2.5 py-1 text-rose-600 ring-1 ring-rose-100">
+                Gagal: {{ blastProgress.failed }}
+              </span>
+              <span class="rounded-full bg-white px-2.5 py-1 text-slate-600 ring-1 ring-slate-100">
+                Status: {{ blastProgress.status }}
+              </span>
+            </div>
+          </div>
+          <p v-else-if="message" class="mt-2 text-xs font-semibold text-emerald-600">{{ message }}</p>
           <p v-if="error" class="text-xs font-semibold text-rose-600">{{ error }}</p>
 
           <div class="mt-4 md:hidden">

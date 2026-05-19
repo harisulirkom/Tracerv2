@@ -4,6 +4,8 @@ export const generateSurveyLink = (payload) => post('/admin/generate-survey-link
 
 export const blastEmail = (payload) => post('/admin/alumni/blast-email', payload)
 
+export const getBlastEmailProgress = (blastId) => get(`/admin/alumni/blast-email/${blastId}`)
+
 export const getEmailTemplate = (key = 'alumni-blast') => get(`/admin/email-templates/${key}`)
 
 export const updateEmailTemplate = (key = 'alumni-blast', payload = {}) =>
@@ -12,6 +14,7 @@ export const updateEmailTemplate = (key = 'alumni-blast', payload = {}) =>
 export default {
   generateSurveyLink,
   blastEmail,
+  getBlastEmailProgress,
   getEmailTemplate,
   updateEmailTemplate,
 }
