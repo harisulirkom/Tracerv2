@@ -1505,30 +1505,9 @@ const runEmailBlast = async (targets = []) => {
       return
     }
 
-    const summary = response?.summary || {}
-    const sentList = response?.sent || []
-    const failedList = response?.failed || []
-
-    if (sentList.length) {
-      markSent(sentList.map((item) => item.nim))
-    }
-    blastProgress.value = {
-      status: 'completed',
-      total: summary.total || targets.length,
-      processed: summary.total || targets.length,
-      sent: summary.sent || sentList.length,
-      failed: summary.failed || failedList.length,
-    }
-
-    message.value = `Email terkirim: ${summary.sent || sentList.length}, gagal: ${summary.failed || failedList.length}.`
-
-    if (failedList.length) {
-      const detail = failedList
-        .slice(0, 3)
-        .map((item) => `${item.nim || '-'}: ${item.reason || 'gagal'}`)
-        .join('; ')
-      error.value = `Sebagian email gagal. ${detail}${failedList.length > 3 ? '...' : ''}`
-    }
+    throw new Error(
+      'Backend belum mengembalikan blast_id. Pastikan backend production sudah pull commit terbaru, route cache dibersihkan, dan cdc-octane sudah direstart.',
+    )
   } catch (e) {
     const detail = e?.response?.data?.message || e?.message || 'Gagal mengirim email.'
     error.value = detail
