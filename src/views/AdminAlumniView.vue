@@ -207,12 +207,24 @@ watch(currentPage, () => {
   }
 })
 
+const hasActiveAlumniFilter = computed(() =>
+  search.value.trim() !== '' ||
+  fakultasFilter.value !== 'all' ||
+  prodiFilter.value !== 'all' ||
+  tahunFilter.value !== 'all' ||
+  statusFilter.value !== 'all',
+)
+
 const totalAlumni = computed(() => {
+  if (hasActiveAlumniFilter.value) {
+    return filteredAlumni.value.length
+  }
+
   const metaTotal = alumni.value.meta?.total
   if (typeof metaTotal === 'number' && metaTotal >= 0) {
     return metaTotal
   }
-  return filteredAlumni.value.length
+  return alumni.value.items.length
 })
 const totalFakultas = computed(() => new Set(filteredAlumni.value.map((item) => item.fakultas)).size)
 const allSelected = computed(
