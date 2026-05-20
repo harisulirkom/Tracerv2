@@ -34,6 +34,7 @@ const search = ref('')
 const fakultasFilter = ref('all')
 const prodiFilter = ref('all')
 const tahunFilter = ref('all')
+const statusFilter = ref('all')
 const selectedAlumni = ref(null)
 const selectedIds = ref([])
 const message = ref('')
@@ -167,7 +168,11 @@ const filteredAlumni = computed(() => {
     const matchFakultas = fakultasFilter.value === 'all' || item.fakultas === fakultasFilter.value
     const matchProdi = prodiFilter.value === 'all' || item.prodi === prodiFilter.value
     const matchTahun = tahunFilter.value === 'all' || String(item.tahunLulus) === String(tahunFilter.value)
-    return matchTerm && matchFakultas && matchProdi && matchTahun
+    const matchStatus =
+      statusFilter.value === 'all' ||
+      (statusFilter.value === 'sent' && item.sent) ||
+      (statusFilter.value === 'unsent' && !item.sent)
+    return matchTerm && matchFakultas && matchProdi && matchTahun && matchStatus
   })
 })
 
@@ -239,6 +244,10 @@ const getStatusClass = (item) => {
   if (item.sent) return 'bg-emerald-50 text-emerald-600'
   if (isEmailMissing(item)) return 'bg-rose-50 text-rose-600'
   return 'bg-amber-50 text-amber-600'
+}
+
+const toggleStatusFilter = (status) => {
+  statusFilter.value = statusFilter.value === status ? 'all' : status
 }
 
 const startDetail = (item) => {
@@ -1903,7 +1912,33 @@ const showingRange = computed(() => {
                   <th class="px-4 py-2 font-semibold">Fakultas</th>
                   <th class="px-4 py-2 font-semibold">Tahun lulus</th>
                   <th class="px-4 py-2 font-semibold">Aksi</th>
-                  <th class="px-4 py-2 font-semibold">Status</th>
+                  <th class="px-4 py-2 font-semibold">
+                    <div class="flex items-center gap-2">
+                      <span>Status</span>
+                      <div class="flex overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+                        <button
+                          type="button"
+                          class="flex h-7 w-7 items-center justify-center text-[11px] font-bold transition hover:bg-emerald-50 hover:text-emerald-700"
+                          :class="statusFilter === 'sent' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-500'"
+                          title="Filter sudah terkirim"
+                          aria-label="Filter sudah terkirim"
+                          @click="toggleStatusFilter('sent')"
+                        >
+                          &uarr;
+                        </button>
+                        <button
+                          type="button"
+                          class="flex h-7 w-7 items-center justify-center border-l border-slate-200 text-[11px] font-bold transition hover:bg-amber-50 hover:text-amber-700"
+                          :class="statusFilter === 'unsent' ? 'bg-amber-100 text-amber-700' : 'text-slate-500'"
+                          title="Filter belum terkirim"
+                          aria-label="Filter belum terkirim"
+                          @click="toggleStatusFilter('unsent')"
+                        >
+                          &darr;
+                        </button>
+                      </div>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
