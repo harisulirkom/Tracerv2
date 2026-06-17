@@ -98,19 +98,22 @@ const getStoredAvatar = (email = '') => {
   if (!email) return null
   const key = email.toLowerCase()
   const value = avatarMap[key]
-  return value || null
+  return normalizeAvatarValue(value)
 }
 
 const storeAvatarForEmail = (email, avatarUrl) => {
   if (!email || !avatarUrl) return
+  const normalized = normalizeAvatarValue(avatarUrl)
+  if (!normalized) return
   const key = email.toLowerCase()
-  if (avatarMap[key] === avatarUrl) return
-  avatarMap[key] = avatarUrl
+  if (avatarMap[key] === normalized) return
+  avatarMap[key] = normalized
   saveAvatarMap()
 }
 
 const normalizeAvatarValue = (value) => {
   const text = String(value || '').trim()
+  if (text.startsWith('data:') && text.length > 20000) return null
   return text || null
 }
 

@@ -477,7 +477,10 @@ const parseNumericWait = (raw) => {
   const match = normalized.match(/[\d.]+/)
   if (!match) return null
   const num = Number(match[0])
-  return Number.isFinite(num) ? num : null
+  if (!Number.isFinite(num) || num < 0) return null
+  if (num >= 1900 && num <= 2100) return null
+  if (num > 120) return null
+  return num
 }
 
 const waitFieldSources = [
@@ -839,14 +842,11 @@ const waitTimeStats = computed(() => {
 const aggregatedWaitStats = computed(() => {
   const api = waitInsights.value?.waiting_time
   const localStats = waitTimeStats.value
-  if (localStats.total) {
-    return localStats
-  }
   if (api && api.avg_wait_months != null) {
     const apiTotal =
-      Number.isFinite(api.total) && api.total > 0 ? api.total : localStats.total
+      Number.isFinite(Number(api.total)) && Number(api.total) > 0 ? Number(api.total) : localStats.total
     return {
-      average: api.avg_wait_months,
+      average: Number(api.avg_wait_months),
       total: apiTotal,
       percentWithin3:
         typeof api.percent_le_3 === 'number' ? api.percent_le_3 : localStats.percentWithin3,

@@ -214,7 +214,7 @@ const homeExtraCopyByLocale = {
       employedRate: 'Persentase lulusan bekerja',
       employedDesc: 'Telah terserap dalam 12 bulan setelah lulus.',
       waitTime: 'Lama tunggu kerja',
-      waitTimeDesc: 'Median waktu sampai pekerjaan pertama.',
+      waitTimeDesc: 'Rerata waktu sampai pekerjaan pertama.',
       salaryRange: 'Rentang gaji rata-rata',
       salaryRangeDesc: 'Gaji awal lulusan (P25 - P75).',
       topIndustry: 'Industri utama',
@@ -306,7 +306,7 @@ const homeExtraCopyByLocale = {
       employedRate: 'Graduate employment rate',
       employedDesc: 'Graduates absorbed within 12 months after graduation.',
       waitTime: 'Job waiting time',
-      waitTimeDesc: 'Median time to first job.',
+      waitTimeDesc: 'Average time to first job.',
       salaryRange: 'Average salary range',
       salaryRangeDesc: 'Graduate starting salary (P25 - P75).',
       topIndustry: 'Top industry',
@@ -965,6 +965,8 @@ const parseMonths = (value) => {
   if (value === null || value === undefined) return null
   const num = Number(String(value).replace(',', '.'))
   if (!Number.isFinite(num) || num <= 0) return null
+  if (num >= 1900 && num <= 2100) return null
+  if (num > 120) return null
   return num
 }
 
@@ -2187,4 +2189,3 @@ onBeforeUnmount(() => {
     </Teleport>
   </div>
 </template>
-
