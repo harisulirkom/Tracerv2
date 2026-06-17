@@ -19,7 +19,42 @@ const shouldRetryProfileUpdateWithPost = (error) => {
   return [403, 405, 408, 413, 429, 499, 500, 501, 502, 503, 504].includes(status)
 }
 
+const hasAvatarFile = (payload) => {
+  const value = payload?.avatarFile
+  if (!value) return false
+  const isFile = typeof File !== 'undefined' && value instanceof File
+  const isBlob = typeof Blob !== 'undefined' && value instanceof Blob
+  return isFile || isBlob
+}
+
+const buildProfileFormData = (payload) => {
+  const formData = new FormData()
+  formData.append('_method', 'PUT')
+
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value === undefined) return
+    if (key === 'avatarFile') {
+      if (value) formData.append('avatar_file', value, value.name || 'avatar.jpg')
+      return
+    }
+    if (key === 'avatar' && payload.avatarFile) return
+    formData.append(key, value === null ? '' : value)
+  })
+
+  return formData
+}
+
 export const updateProfile = async (payload) => {
+  if (hasAvatarFile(payload)) {
+    return post('/user', buildProfileFormData(payload), {
+      timeout: 60000,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'X-HTTP-Method-Override': 'PUT',
+      },
+    })
+  }
+
   try {
     return await put('/user', payload, {
       timeout: 60000,

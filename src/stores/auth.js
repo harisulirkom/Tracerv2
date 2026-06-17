@@ -113,7 +113,6 @@ const storeAvatarForEmail = (email, avatarUrl) => {
 
 const normalizeAvatarValue = (value) => {
   const text = String(value || '').trim()
-  if (text.startsWith('data:') && text.length > 20000) return null
   return text || null
 }
 

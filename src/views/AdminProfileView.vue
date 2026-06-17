@@ -21,6 +21,7 @@ const form = reactive({
 const saving = ref(false)
 const processingAvatar = ref(false)
 const avatarDirty = ref(false)
+const avatarFile = ref(null)
 const confirmSaveOpen = ref(false)
 const message = ref('')
 const error = ref('')
@@ -77,7 +78,21 @@ const compressAvatarImage = async (file) => {
     throw new Error('Ukuran foto terlalu besar. Gunakan foto dengan resolusi lebih kecil.')
   }
 
-  return dataUrl
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (result) => {
+        if (result) resolve(result)
+        else reject(new Error('Gagal memproses file foto.'))
+      },
+      'image/jpeg',
+      quality,
+    )
+  })
+
+  return {
+    previewUrl: dataUrl,
+    file: new File([blob], 'avatar.jpg', { type: 'image/jpeg' }),
+  }
 }
 
 const handleAvatarChange = async (event) => {
@@ -90,9 +105,11 @@ const handleAvatarChange = async (event) => {
 
   try {
     const compressed = await compressAvatarImage(file)
-    form.avatar = compressed
+    form.avatar = compressed.previewUrl
+    avatarFile.value = compressed.file
     avatarDirty.value = true
   } catch (e) {
+    avatarFile.value = null
     error.value = e?.message || 'Gagal memproses foto profil.'
   } finally {
     processingAvatar.value = false
@@ -106,7 +123,7 @@ const handleSubmit = async () => {
   saving.value = true
 
   const ok = await auth.updateProfile({
-    ...(avatarDirty.value ? { avatar: form.avatar } : {}),
+    ...(avatarDirty.value ? { avatar: form.avatar, avatarFile: avatarFile.value } : {}),
     fullName: form.fullName,
     username: form.username,
     email: form.email,
@@ -119,6 +136,7 @@ const handleSubmit = async () => {
     message.value = 'Profil berhasil diperbarui'
     form.password = ''
     avatarDirty.value = false
+    avatarFile.value = null
   } else {
     error.value = 'Gagal memperbarui profil admin'
   }
