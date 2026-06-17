@@ -68,6 +68,7 @@ const state = reactive({
   accounts: [],
   token: null,
   tokenExpiresAt: null,
+  profileUpdateError: '',
 })
 
 let avatarMap = {}
@@ -118,6 +119,19 @@ const normalizeAvatarValue = (value) => {
 
 const mergeAvatarWithEmail = (email, candidate) =>
   normalizeAvatarValue(candidate) || getStoredAvatar(email) || DEFAULT_AVATAR
+
+const extractApiErrorMessage = (error) => {
+  const data = error?.response?.data
+  const firstValidationError = data?.errors
+    ? Object.values(data.errors).flat().find(Boolean)
+    : ''
+  return (
+    firstValidationError ||
+    data?.message ||
+    error?.message ||
+    'Gagal memperbarui profil admin'
+  )
+}
 
 loadAvatarMap()
 const saveAccounts = () => {
@@ -230,6 +244,7 @@ loadToken()
 export const useAuth = () => {
   const currentUser = computed(() => state.user)
   const isAuthenticated = computed(() => !!state.user && !!state.token)
+  const profileUpdateError = computed(() => state.profileUpdateError)
   const userManagement = useUserManagement()
 
   const toAuthUser = (profile = {}, fallback = {}) => {
@@ -427,6 +442,7 @@ export const useAuth = () => {
 
   const updateProfile = async (updates = {}) => {
     if (!state.user) return false
+    state.profileUpdateError = ''
     const previousUser = { ...state.user }
 
     const payload = {}
@@ -435,6 +451,7 @@ export const useAuth = () => {
     if (updates.username !== undefined) payload.username = String(updates.username || '').trim() || null
     if (updates.email !== undefined) payload.email = String(updates.email || '').trim()
     if (updates.avatar !== undefined) payload.avatar = updates.avatar || null
+    if (updates.avatarFile !== undefined) payload.avatarFile = updates.avatarFile || null
     if (updates.password) payload.password = updates.password
 
     const canRemoteUpdate = canUseApi && state.token && !isLocalFallbackToken(state.token)
@@ -472,6 +489,7 @@ export const useAuth = () => {
         saveUser(normalized)
         return true
       } catch (e) {
+        state.profileUpdateError = extractApiErrorMessage(e)
         return false
       }
     }
@@ -492,6 +510,7 @@ export const useAuth = () => {
       try {
         userManagement.updateUser(managedUser.id, payload)
       } catch (e) {
+        state.profileUpdateError = extractApiErrorMessage(e)
         return false
       }
 
@@ -522,7 +541,10 @@ export const useAuth = () => {
     }
 
     const idx = state.accounts.findIndex((acc) => acc.email === previousUser.email)
-    if (idx === -1) return false
+    if (idx === -1) {
+      state.profileUpdateError = 'Akun lokal tidak ditemukan. Silakan login ulang.'
+      return false
+    }
 
     const current = state.accounts[idx]
 
@@ -566,6 +588,7 @@ export const useAuth = () => {
     login,
     logout,
     accounts: computed(() => state.accounts),
+    profileUpdateError,
     updateProfile,
   }
 }

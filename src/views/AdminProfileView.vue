@@ -138,7 +138,7 @@ const handleSubmit = async () => {
     avatarDirty.value = false
     avatarFile.value = null
   } else {
-    error.value = 'Gagal memperbarui profil admin'
+    error.value = auth.profileUpdateError?.value || 'Gagal memperbarui profil admin'
   }
 }
 
