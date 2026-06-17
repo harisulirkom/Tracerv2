@@ -49,7 +49,6 @@ export const updateProfile = async (payload) => {
     return post('/user', buildProfileFormData(payload), {
       timeout: 60000,
       headers: {
-        'Content-Type': 'multipart/form-data',
         'X-HTTP-Method-Override': 'PUT',
       },
     })
