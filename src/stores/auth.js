@@ -289,12 +289,13 @@ export const useAuth = () => {
     profileSyncAttempted = true
     userService
       .getProfile()
-      .then((resp) => {
+      .then(async (resp) => {
         const profile = resp?.data || resp
         if (!profile?.email) return
         const normalized = toAuthUser(profile, state.user || {})
         state.user = normalized
         saveUser(normalized)
+        await userManagement.fetchRolePermissions?.()
       })
       .catch(() => {
         // ignore silent profile sync failure
@@ -401,6 +402,7 @@ export const useAuth = () => {
           state.tokenExpiresAt = exp
           saveToken(token, exp)
           setApiAuthToken(token)
+          await userManagement.fetchRolePermissions?.()
         }
         if (profile?.email) {
           const user = toAuthUser(profile, state.user || {})

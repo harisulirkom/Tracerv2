@@ -6,8 +6,7 @@ import LoadingOverlay from '../components/LoadingOverlay.vue'
 import { useQuestionnaires } from '../stores/questionnaires'
 import { useSubmissions } from '../stores/submissions'
 import { jsPDF } from 'jspdf'
-import * as XLSX from 'xlsx'
-import { getResponsesSummary } from '../services/tracerService'
+import tracerService, { getResponsesSummary } from '../services/tracerService'
 import { useAlumni } from '../stores/alumni'
 import {
   ALUMNI_TEMPLATE_HEADERS,
@@ -1193,12 +1192,46 @@ const loadAllRecordsForExport = async () => {
   return isRecordFilterActive.value ? filterRecords(mappedRecords) : mappedRecords
 }
 
+const buildExportFilters = () => ({
+  fakultas: filters.fakultas === 'all' ? '' : filters.fakultas,
+  prodi: filters.prodi === 'all' ? '' : filters.prodi,
+  tahun: filters.tahun === 'all' ? '' : filters.tahun,
+  status: filters.status.includes('all') ? [] : [...filters.status],
+  question_id: /^[0-9]+$/.test(String(filters.questionId || '')) ? Number(filters.questionId) : null,
+  answer_value: filters.answerValue || '',
+})
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+const waitForExportReady = async (exportId) => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const status = await tracerService.getExportStatus(exportId)
+    if (status?.status === 'ready') return status
+    if (status?.status === 'failed') {
+      throw new Error(status?.error_message || 'Export gagal diproses.')
+    }
+    await sleep(1000)
+  }
+  throw new Error('Export belum selesai diproses. Coba lagi beberapa saat lagi.')
+}
+
 const exportByFormat = async (format = 'csv') => {
   exportMessage.value = isRecordFilterActive.value
     ? 'Menyiapkan data export sesuai filter...'
     : 'Menyiapkan data export semua jawaban...'
   try {
-    const records = await loadAllRecordsForExport()
+    const records = isRecordFilterActive.value ? filteredRecords.value : allRecords.value
     if (!records.length) {
       exportMessage.value = isRecordFilterActive.value
         ? 'Tidak ada data jawaban yang sesuai filter untuk diekspor.'
@@ -1206,23 +1239,19 @@ const exportByFormat = async (format = 'csv') => {
       return
     }
 
-    const aoa =
-      questionnaire.value?.audience === 'alumni'
-        ? buildAlumniTemplateAoA(records, getRawValue)
-        : buildGenericExportAoA(records)
-    const ws = XLSX.utils.aoa_to_sheet(aoa)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Jawaban')
-
-    const filename = `jawaban_${questionnaireId.value}_${Date.now()}.${format}`
-    if (format === 'csv') {
-      XLSX.writeFile(wb, filename, { bookType: 'csv' })
-    } else {
-      XLSX.writeFile(wb, filename)
-    }
+    const request = await tracerService.requestResponsesExport({
+      questionnaire_id: questionnaireId.value,
+      format,
+      filters: buildExportFilters(),
+    })
+    const exportId = request?.export_id
+    if (!exportId) throw new Error('Export tidak berhasil dibuat.')
+    await waitForExportReady(exportId)
+    const blob = await tracerService.downloadExport(exportId, { responseType: 'blob' })
+    downloadBlob(blob, `jawaban_${questionnaireId.value}_${Date.now()}.${format}`)
     exportMessage.value = 'Export selesai diunduh.'
   } catch (err) {
-    exportMessage.value = err?.message || 'Gagal membuat export.'
+    exportMessage.value = err?.response?.data?.message || err?.message || 'Gagal membuat export.'
   }
 }
 

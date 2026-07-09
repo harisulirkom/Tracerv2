@@ -1,3 +1,32 @@
+vi.mock('../src/services/userService', () => {
+  const profile = {
+    id: 1,
+    email: 'admin@tracer.local',
+    name: 'Admin Tracer',
+    fullName: 'Admin Tracer',
+    username: 'admin',
+    role: 'Super Admin',
+    status: 'Aktif',
+  }
+
+  return {
+    default: {
+      login: vi.fn(async () => ({
+        token: 'test-token',
+        user: profile,
+      })),
+      logout: vi.fn(async () => ({ message: 'Logged out' })),
+      getProfile: vi.fn(async () => profile),
+      updateProfile: vi.fn(async (payload = {}) => ({ ...profile, ...payload })),
+      getUsers: vi.fn(async () => ({ data: [] })),
+      createUser: vi.fn(async (payload = {}) => payload),
+      updateUser: vi.fn(async (_id, payload = {}) => payload),
+      deleteUser: vi.fn(async () => undefined),
+      resetPassword: vi.fn(async () => ({ message: 'Password reset' })),
+    },
+  }
+})
+
 import router from '../src/router'
 import { useAuth } from '../src/stores/auth'
 

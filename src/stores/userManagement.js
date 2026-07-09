@@ -63,7 +63,7 @@ const MENU_PERMISSION_KEYS = [
   'user',
   'berita',
 ]
-const EXTRA_PERMISSION_KEYS = ['alumniEdit']
+const EXTRA_PERMISSION_KEYS = ['alumniEdit', 'kuisionerImportXlsx']
 
 const defaultUsers = [
   {
@@ -132,6 +132,7 @@ const createDefaultPermissions = () => ({
   'Super Admin': {
     ikhtisar: true,
     kuisioner: true,
+    kuisionerImportXlsx: true,
     alumni: true,
     alumniEdit: true,
     bankSoal: true,
@@ -145,6 +146,7 @@ const createDefaultPermissions = () => ({
   'Admin Universitas': {
     ikhtisar: true,
     kuisioner: true,
+    kuisionerImportXlsx: true,
     alumni: true,
     alumniEdit: false,
     bankSoal: true,
@@ -158,6 +160,7 @@ const createDefaultPermissions = () => ({
   'Admin Fakultas': {
     ikhtisar: true,
     kuisioner: true,
+    kuisionerImportXlsx: false,
     alumni: true,
     alumniEdit: false,
     bankSoal: true,
@@ -171,6 +174,7 @@ const createDefaultPermissions = () => ({
   'Admin Prodi': {
     ikhtisar: true,
     kuisioner: true,
+    kuisionerImportXlsx: false,
     alumni: true,
     alumniEdit: false,
     bankSoal: true,
@@ -362,6 +366,40 @@ load()
 const generateId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString())
 
 export const useUserManagement = () => {
+  const applyPermissionMatrix = (matrix = {}) => {
+    Object.entries(matrix || {}).forEach(([role, rolePermissions]) => {
+      if (!role || !rolePermissions || typeof rolePermissions !== 'object') return
+      state.permissions[role] = {
+        ...(state.permissions[role] || {}),
+        ...rolePermissions,
+      }
+    })
+    ensurePermissionIntegrity()
+    save()
+  }
+
+  const fetchRolePermissions = async () => {
+    if (!canUseApi) return
+    try {
+      const resp = await userService.getRolePermissions()
+      const matrix = resp?.data?.permissions || resp?.permissions || {}
+      applyPermissionMatrix(matrix)
+    } catch (err) {
+      state.error = err?.message || 'Gagal memuat permission role'
+    }
+  }
+
+  const persistRolePermissions = async () => {
+    if (!canUseApi) return
+    try {
+      const resp = await userService.updateRolePermissions({ permissions: state.permissions })
+      const matrix = resp?.data?.permissions || resp?.permissions || {}
+      applyPermissionMatrix(matrix)
+    } catch (err) {
+      state.error = err?.message || 'Gagal menyimpan permission role'
+    }
+  }
+
   const fetchUsers = async (params = {}) => {
     state.loading = true
     state.error = ''
@@ -376,6 +414,7 @@ export const useUserManagement = () => {
           fullName: u.fullName || u.name,
           username: u.username || (u.email ? u.email.split('@')[0] : ''),
         }))
+        await fetchRolePermissions()
         save()
         return
       }
@@ -515,8 +554,12 @@ export const useUserManagement = () => {
   }
 
   const togglePermission = (role, key, value) => {
+    if (!state.permissions[role]) {
+      state.permissions[role] = {}
+    }
     state.permissions[role][key] = value
     save()
+    persistRolePermissions()
   }
 
   const setAccessControl = (key, value) => {
@@ -598,6 +641,7 @@ export const useUserManagement = () => {
     addAuditLog,
     exportUsers,
     fetchUsers,
+    fetchRolePermissions,
     loading: computed(() => state.loading),
     error: computed(() => state.error),
   }

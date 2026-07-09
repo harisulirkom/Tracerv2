@@ -99,6 +99,7 @@ const formLocked = ref(false)
 const lookupLoading = ref(false)
 const attemptNotice = ref('')
 const alumniId = ref(null)
+const submissionToken = ref('')
 
 const route = useRoute()
 const { alumni, fetchAlumni } = useAlumni()
@@ -295,10 +296,27 @@ const extractAlumniIdFromPayload = (payload) => {
   return match?.id
 }
 
+const extractSubmissionTokenFromPayload = (payload) => {
+  const candidates = [
+    payload?.submission_token,
+    payload?.submissionToken,
+    payload?.token,
+    payload?.data?.submission_token,
+    payload?.data?.submissionToken,
+    payload?.alumni?.submission_token,
+    payload?.alumni?.submissionToken,
+    payload?.data?.alumni?.submission_token,
+    payload?.data?.alumni?.submissionToken,
+  ]
+  return String(candidates.find((value) => value) || '').trim()
+}
+
 const tryApplyAlumniPayload = (payload) => {
   const [match] = normalizeAlumniList(payload)
   if (!match) return false
   applyAlumniData(match)
+  const token = extractSubmissionTokenFromPayload(payload)
+  if (token) submissionToken.value = token
   return true
 }
 
@@ -334,6 +352,7 @@ const resetForm = () => {
   form.dynamicAnswers = {}
   nimInput.value = ''
   alumniId.value = null
+  submissionToken.value = ''
 }
 
 const provinces = [
@@ -640,6 +659,7 @@ const validateTokenFromQuery = async () => {
       throw new Error('Token tidak valid.')
     }
     tokenInfo.value = alumni
+    submissionToken.value = String(token)
     tokenError.value = ''
     formLocked.value = false
     nimInput.value = alumni.nim
@@ -848,6 +868,8 @@ const submitForm = async () => {
     if (nimCandidate) {
       try {
         const resp = await lookupAlumniByNim(nimCandidate)
+        const token = extractSubmissionTokenFromPayload(resp)
+        if (token) submissionToken.value = token
         const foundId =
           extractAlumniIdFromPayload(resp) ||
           resp?.data?.id ||
@@ -996,6 +1018,7 @@ const submitForm = async () => {
   try {
     const payloadNim = String(snapshot.nim || form.nim || nimInput.value || '').trim()
     const payloadAlumniId = Number(alumniId.value)
+    const lookupSubmissionToken = String(submissionToken.value || '').trim()
     const basePayload = {
       questionnaire_id: serverQuestionnaireId.value,
       answers: answersPayload,
@@ -1019,6 +1042,18 @@ const submitForm = async () => {
       } catch (err) {
         if (err?.response?.status !== 404) throw err
         // Fallback ke endpoint umum jika backend belum expose rute token
+        resp = await responseService.submitResponses(basePayload)
+      }
+    } else if (lookupSubmissionToken) {
+      try {
+        resp = await responseService.submitResponsesViaToken({
+          token: lookupSubmissionToken,
+          questionnaire_id: serverQuestionnaireId.value,
+          answers: answersPayload,
+          form_data: snapshot,
+        })
+      } catch (err) {
+        if (err?.response?.status !== 404) throw err
         resp = await responseService.submitResponses(basePayload)
       }
     } else {

@@ -81,6 +81,10 @@ export const updateProfile = async (payload) => {
 
 export const getUsers = (params = {}) => get('/admin/users', { params })
 
+export const getRolePermissions = () => get('/admin/role-permissions')
+
+export const updateRolePermissions = (payload) => put('/admin/role-permissions', payload)
+
 export const createUser = (payload) => post('/admin/users', payload)
 
 export const updateUser = (id, payload) => put(`/admin/users/${id}`, payload)
@@ -96,6 +100,8 @@ export default {
   getProfile,
   updateProfile,
   getUsers,
+  getRolePermissions,
+  updateRolePermissions,
   createUser,
   updateUser,
   deleteUser,

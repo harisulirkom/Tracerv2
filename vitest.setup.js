@@ -24,6 +24,7 @@ const memoryStorage = new MemoryStorage()
 
 if (typeof window !== 'undefined') {
   window.localStorage = memoryStorage
+  window.scrollTo = () => {}
 }
 
 globalThis.localStorage = memoryStorage

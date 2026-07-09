@@ -62,6 +62,9 @@ export const getResponsesSummary = (questionnaireId, query = {}, requestConfig =
 export const getTracerAccreditationSummary = (query = {}, requestConfig = {}) =>
   get('/dashboard/tracer/accreditation-summary', { params: query, ...requestConfig })
 
+export const downloadTracerAccreditationExport = (query = {}, requestConfig = {}) =>
+  get('/dashboard/tracer/accreditation-export', { params: query, ...requestConfig })
+
 export const requestResponsesExport = (payload = {}) =>
   post('/exports/responses', payload)
 
@@ -75,6 +78,17 @@ export const submitAlumniAnswer = (payload) => post('/responses/submit', payload
 
 export const submitBulkSubmissions = (payloads = []) =>
   post('/submissions/bulk', { data: payloads })
+
+export const importResponsesExcel = (questionnaireId, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return post(`/questionnaires/${questionnaireId}/responses/import`, formData, {
+    timeout: 120000,
+  })
+}
+
+export const downloadResponseTemplate = (questionnaireId, config = {}) =>
+  get(`/questionnaires/${questionnaireId}/responses/template`, config)
 
 export const deleteSubmission = async (submissionId) => {
   const id = encodeURIComponent(String(submissionId ?? '').trim())
@@ -123,11 +137,14 @@ export default {
   getResponses,
   getResponsesSummary,
   getTracerAccreditationSummary,
+  downloadTracerAccreditationExport,
   requestResponsesExport,
   getExportStatus,
   downloadExport,
   submitAlumniAnswer,
   submitBulkSubmissions,
+  importResponsesExcel,
+  downloadResponseTemplate,
   deleteSubmission,
   getSubmissionById,
   getActiveQuestionnaire,

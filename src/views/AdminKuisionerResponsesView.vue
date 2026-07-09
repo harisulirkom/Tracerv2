@@ -6,13 +6,12 @@ import LoadingOverlay from '../components/LoadingOverlay.vue'
 import { useQuestionnaires } from '../stores/questionnaires'
 import { useSubmissions } from '../stores/submissions'
 import { useAuth } from '../stores/auth'
+import { useUserManagement } from '../stores/userManagement'
 import tracerService from '../services/tracerService'
 import { jsPDF } from 'jspdf'
-import * as XLSX from 'xlsx'
 import { letterHeadContent } from '../constants/letterHeadContent'
 import {
   ALUMNI_TEMPLATE_HEADERS,
-  ALUMNI_TEMPLATE_SAMPLE_ROW,
   buildAlumniTemplateAoA,
   buildAlumniTemplateDataRow,
 } from '../utils/alumniExportTemplate'
@@ -23,14 +22,19 @@ const { questionnaires, fetchQuestionnaires, fetchQuestions, questionsById, ques
 const {
   submissions,
   addSubmission,
-  addSubmissionBatch,
   fetchSubmissions,
   loading: submissionsLoading,
   error: submissionsError,
   deleteSubmission,
 } = useSubmissions()
 const { user: currentUser } = useAuth()
+const { permissions } = useUserManagement()
 const isSuperAdmin = computed(() => (currentUser.value?.role || '').toLowerCase().includes('super'))
+const canImportXlsxResponses = computed(() => {
+  if (isSuperAdmin.value) return true
+  const role = currentUser.value?.role || ''
+  return !!permissions[role]?.kuisionerImportXlsx
+})
 
 const questionnaireId = computed(() => String(route.params.id ?? ''))
 const questionnaire = computed(
@@ -43,6 +47,7 @@ const uploadInput = ref(null)
 const uploadLoading = ref(false)
 const uploadMessage = ref('')
 const uploadError = ref('')
+const exportLoading = ref(false)
 const logoAssetUrl = new URL('../assets/uin.png', import.meta.url).href
 const logoDataUrl = ref(null)
 const MAX_RESPONSE_LIMIT = 10000
@@ -360,15 +365,6 @@ const scopedQuestionFields = computed(() =>
     ? questionFields.value.filter((q) => !q.isBank)
     : questionFields.value,
 )
-const templateHeaders = computed(() =>
-  questionFields.value.map((q) => String(q.key ?? '').trim()),
-)
-const templateLabelRow = computed(() =>
-  questionFields.value.map((q) => q.label || formatFriendlyLabel(q.key)),
-)
-const templateLabelRowNormalized = computed(() =>
-  templateLabelRow.value.map((label) => String(label ?? '').trim().toLowerCase()),
-)
 
 const filters = reactive({
   tahun: 'all',
@@ -436,112 +432,13 @@ const availableFilterQuestions = computed(() => {
 })
 const isPenggunaAudience = computed(() => audienceType.value === 'pengguna')
 
-const templateSampleRow = computed(() =>
-  questionFields.value.map((field) => {
-    const key = String(field.key ?? '').toLowerCase()
-    if (isPenggunaAudience.value) {
-      if (key.includes('organisasi')) return 'PT Sukses Bersama'
-      if (key.includes('bidang')) return 'Teknologi Informasi'
-      if (key.includes('pic')) return 'Rahmat Fajar'
-      if (key.includes('jabatan')) return 'HR Manager'
-      if (key.includes('kontak')) return 'hr@contoh.com'
-      if (key.includes('jumlah')) return '5'
-      if (key.includes('peran')) return 'Software Developer'
-      if (key.includes('waktu')) return 'Q1 2026'
-      if (key.includes('kinerja') || key.includes('kompetensi') || key.includes('pengembangan')) {
-        return 'Sangat baik'
-      }
-      if (key.includes('catatan')) return 'Punya kebutuhan pekerja remote.'
-    } else {
-      if (key.includes('nama')) return 'Alya Putri'
-      if (key.includes('nim')) return '190102001'
-      if (key.includes('nik')) return '0001234567890123'
-      if (key.includes('prodi')) return 'Teknik Informatika'
-      if (key.includes('fakultas')) return 'Teknik'
-      if (key.includes('tahun')) return '2023'
-      if (key.includes('email')) return 'alumni@example.com'
-      if (key.includes('status')) return 'bekerja'
-      if (key.includes('pendapatan') || key.includes('gaji')) return '5000000'
-      if (key.includes('lokasi')) return 'Jakarta'
-      if (key.includes('perusahaan') || key.includes('usaha') || key.includes('instansi')) return 'PT Contoh'
-    }
-    if (key.includes('telepon') || key.includes('telp') || key.includes('kontak')) return '08123456789'
-    if (key.includes('bulan')) return '2'
-    return `Contoh ${field.label || formatFriendlyLabel(field.key)}`
-  }),
-)
-
-const templateSampleRowNormalized = computed(() =>
-  templateSampleRow.value.map((cell) => String(cell ?? '').trim().toLowerCase()),
-)
-
 const pageLoading = computed(
   () => submissionsLoading.value || questionsLoading.value || uploadLoading.value,
 )
-const statusLabelMap = {
-  all: 'Semua status',
-  umum: 'Umum',
-  pengguna: 'Pengguna alumni',
-  bekerja: 'Bekerja',
-  wiraswasta: 'Wirausaha',
-  melanjutkan: 'Melanjutkan pendidikan',
-  mencari: 'Mencari kerja',
-  belum: 'Belum memungkinkan bekerja',
-  melanjutkan_pendidikan: 'Melanjutkan pendidikan',
-  mencari_kerja: 'Mencari kerja',
-  belum_bekerja: 'Belum memungkinkan bekerja',
-}
-const getStatusLabel = (value) => {
-  if (!value) return statusLabelMap.all
-  const normalized = String(value).trim().toLowerCase()
-  if (statusLabelMap[normalized]) return statusLabelMap[normalized]
-  const cleaned = normalized.replace(/_/g, ' ')
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
-}
 const audienceType = computed(() => {
   const raw = questionnaire.value?.audience || questionnaire.value?.targetAudience
   return raw ? String(raw).trim().toLowerCase() : 'alumni'
 })
-
-const audienceDisplayLabel = computed(() => {
-  if (audienceType.value === 'pengguna') return 'Pengguna alumni'
-  if (audienceType.value === 'umum') return 'Umum'
-  return 'Alumni'
-})
-
-const templateQuestionListRows = computed(() =>
-  questionFields.value.map((field) => {
-    const statusKey = field.statusGroup || 'umum'
-    const label = getStatusLabel(statusKey)
-    const note =
-      ['umum', 'all'].includes(statusKey) || label === statusLabelMap.all
-        ? ''
-        : `Tampilkan hanya saat status: ${label}`
-    return [
-      String(field.key ?? '').trim(),
-      field.label || formatFriendlyLabel(field.key),
-      audienceDisplayLabel.value,
-      label,
-      note,
-    ]
-  }),
-)
-const arrayColumns = ['bekerja_caraMencari', 'bekerja_alasanTidakSesuai', 'mencari_cara']
-const objectColumns = ['kompetensi_individu', 'kompetensi_pembelajaran']
-
-const parseObjectColumn = (val) => {
-  if (!val) return {}
-  if (typeof val === 'object' && !Array.isArray(val)) return val
-  const parts = String(val)
-    .split(';')
-    .map((p) => p.trim())
-    .filter(Boolean)
-  return parts.reduce((acc, part) => {
-    const [k, v] = part.split(':').map((s) => s.trim())
-    if (k) acc[k] = v || ''
-    return acc
-  }, {})
-}
 
 const getRawValue = (raw, key) => {
   if (!raw) return null
@@ -940,136 +837,54 @@ watch(() => filters.questionId, () => {
 const handleUploadClick = () => {
   uploadMessage.value = ''
   uploadError.value = ''
+  if (!canImportXlsxResponses.value) {
+    uploadError.value = 'Anda tidak memiliki akses import jawaban XLSX.'
+    return
+  }
   if (uploadInput.value) {
     uploadInput.value.click()
   }
 }
 
-const ensureHeaders = (headers) => {
-  // Optional validation
-}
-
-const findHeaderIndex = (headers, key) => {
-  if (!headers || !key) return -1
-  const k = key.toLowerCase()
-  return headers.findIndex(h => {
-    const hh = String(h || '').trim().toLowerCase()
-    return hh === k || hh === k.replace(/_/g, ' ') || hh.includes(k)
-  })
-}
-
-const isSampleRowArray = (row) => {
-  if (!Array.isArray(row)) return false
-  const rowStr = row.join(' ').toLowerCase()
-  return rowStr.includes('contoh') || rowStr.includes('mawar melati') || rowStr.includes('123456789')
-}
-
 const importFromExcel = async (event) => {
   const file = event.target?.files?.[0]
   if (!file) return
+  if (!canImportXlsxResponses.value) {
+    uploadMessage.value = ''
+    uploadError.value = 'Anda tidak memiliki akses import jawaban XLSX.'
+    if (event.target) event.target.value = ''
+    return
+  }
   uploadLoading.value = true
   uploadMessage.value = ''
   uploadError.value = ''
   try {
-    const XLSX = await import('xlsx')
-    const data = await file.arrayBuffer()
-    const workbook = XLSX.read(data, { type: 'array' })
-    
-    // Prioritize 'Template' sheet, otherwise first sheet
-    let sheetName = workbook.SheetNames.find(name => name === 'Template')
-    if (!sheetName) sheetName = workbook.SheetNames[0]
-    
-    if (!sheetName) throw new Error('Sheet tidak ditemukan.')
-    
-    const worksheet = workbook.Sheets[sheetName]
-    const rawRows = XLSX.utils.sheet_to_json(worksheet, {
-      header: 1,
-      defval: '',
-      blankrows: false,
-    })
-    
-    if (rawRows.length < 1) throw new Error('File kosong.')
-    const headerRow = rawRows[0]
-    ensureHeaders(headerRow)
-    
-    // Check if second row is sample data (contains 'Contoh' or '1901...')
-    let dataRows = rawRows.slice(1)
-    if (dataRows.length && isSampleRowArray(dataRows[0])) {
-      dataRows = dataRows.slice(1)
+    const response = await tracerService.importResponsesExcel(questionnaireId.value, file)
+    const summary = response?.summary || {}
+    const successCount = Number(summary.success_count || response?.data?.length || 0)
+    const errorCount = Number(summary.error_count || 0)
+    uploadMessage.value = `${successCount} jawaban berhasil diimpor.`
+    if (errorCount > 0) {
+      const firstError = Array.isArray(summary.errors) && summary.errors.length
+        ? ` Baris ${summary.errors[0].row}: ${summary.errors[0].message}`
+        : ''
+      uploadError.value = `${errorCount} baris gagal diimpor.${firstError}`
     }
-
-    // Filter empty rows
-    dataRows = dataRows.filter((row) =>
-      row.some((cell) => String(cell ?? '').trim().length)
-    )
-    
-    if (!dataRows.length) throw new Error('Tidak ada baris jawaban.')
-
-    if (dataRows.length > 5000) {
-      throw new Error(`Data terlalu banyak (${dataRows.length} baris). Maksimal 5000 baris per upload.`)
-    }
-
-    const payloads = dataRows.map(row => {
-      // Helper to safely get value by header name
-      const getValue = (key) => {
-        const idx = findHeaderIndex(headerRow, key)
-        return idx !== -1 ? row[idx] : ''
-      }
-
-      const normalized = {}
-      // Map all known 53 columns + dynamic ones
-      const headerKeys = headerRow.map(h => String(h||'').trim())
-      
-      headerKeys.forEach((key, idx) => {
-         let val = row[idx]
-         if (arrayColumns.includes(key)) {
-             if (typeof val === 'string') {
-                 val = val.split(';').map(v => v.trim()).filter(Boolean)
-             }
-             if (!Array.isArray(val)) val = val ? [val] : []
-         }
-         if (objectColumns.includes(key)) {
-             val = parseObjectColumn(val)
-         }
-         normalized[key] = val
-      })
-
-      // Construct payload compatible with addSubmission
-      return {
-        type: targetType.value,
-        audience: questionnaire.value?.audience || 'alumni',
-        questionnaire_id: questionnaire.value?.id,
-        answers: [],
-        
-        // Identity
-        nama: getValue('nama') || 'Responden',
-        nim: String(getValue('nim') || ''),
-        nik: String(getValue('nik') || ''),
-        email: getValue('email') || '',
-        prodi: getValue('prodi') || '',
-        fakultas: getValue('fakultas') || '',
-        tahun: getValue('tahun') || '',
-        status: (getValue('status') || 'belum').toLowerCase(),
-        
-        // Metrics
-        waitMonths: 
-            getElementValue(normalized, ['bekerja_bulanDapat', 'bekerja_bulanTidak', 'mencari_mulaiSetelah', 'mencari_mulaiSebelum']) || 0,
-        salary: getValue('bekerja_pendapatan') || 0,
-        province: getValue('bekerja_provinsi') || getValue('studi_lokasi') || '',
-        industry: getValue('bekerja_jenisPerusahaan') || getValue('wira_jenisPerusahaan') || getValue('wira_bidang') || '',
-        eduFit: getValue('bekerja_pendidikanSesuai') || getValue('wira_pendidikan') || '',
-        
-        // Raw data for detailed questions
-        raw: { ...normalized },
-        form_data: { ...normalized }
-      }
-    })
-
-    const count = await addSubmissionBatch(payloads)
-    uploadMessage.value = `${count} jawaban berhasil diimpor.`
+    await fetchSubmissions({ questionnaireId: questionnaireId.value }, { silent: true })
   } catch (err) {
     console.error(err)
-    uploadError.value = err?.message || 'Gagal mengimpor berkas.'
+    const summary = err?.response?.data?.summary
+    const successCount = Number(summary?.success_count || 0)
+    const firstError = Array.isArray(summary?.errors) && summary.errors.length
+      ? ` Baris ${summary.errors[0].row}: ${summary.errors[0].message}`
+      : ''
+    if (successCount > 0) {
+      uploadMessage.value = `${successCount} jawaban berhasil diimpor.`
+      await fetchSubmissions({ questionnaireId: questionnaireId.value }, { silent: true })
+    }
+    uploadError.value = err?.response?.data?.message
+      ? `${err.response.data.message}${firstError}`
+      : err?.message || 'Gagal mengimpor berkas.'
   } finally {
     uploadLoading.value = false
     if (uploadInput.value) {
@@ -1078,43 +893,18 @@ const importFromExcel = async (event) => {
   }
 }
 
-// Helper for waitMonths extraction
-const getElementValue = (obj, keys) => {
-    for (const k of keys) {
-        if (obj[k]) return obj[k]
-    }
-    return ''
-}
-
 const downloadTemplate = async () => {
   uploadMessage.value = ''
   uploadError.value = ''
-  const XLSX = await import('xlsx')
-
-  const useDynamicHeaders = isPenggunaAudience.value && templateHeaders.value.length > 0
-  const headerRow = useDynamicHeaders
-    ? templateHeaders.value.map((header) => String(header ?? '').trim())
-    : ALUMNI_TEMPLATE_HEADERS
-  const sampleRowValues = useDynamicHeaders ? templateSampleRow.value : ALUMNI_TEMPLATE_SAMPLE_ROW
-  const rows = [headerRow, sampleRowValues]
-  
-  const ws = XLSX.utils.aoa_to_sheet(rows)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Template')
-  
-  // Optional: Keep Question list if useful, but ensure Template is valid first
-  if (templateQuestionListRows.value.length) {
-    const questionListRows = [
-      ['Kolom', 'Pertanyaan', 'Target audiens', 'Kondisi tampil', 'Catatan'],
-      ...templateQuestionListRows.value,
-    ]
-    const qs = XLSX.utils.aoa_to_sheet(questionListRows)
-    XLSX.utils.book_append_sheet(wb, qs, 'Daftar Pertanyaan')
+  try {
+    const blob = await tracerService.downloadResponseTemplate(questionnaireId.value, { responseType: 'blob' })
+    const suffix = questionnaire.value?.audience === 'pengguna' ? 'pengguna' : questionnaire.value?.audience || 'alumni'
+    downloadBlob(blob, `template-jawaban-${suffix}.xlsx`)
+    uploadMessage.value = 'Template standar berhasil diunduh.'
+  } catch (err) {
+    console.error(err)
+    uploadError.value = err?.response?.data?.message || err?.message || 'Gagal mengunduh template.'
   }
-  
-  const suffix = questionnaire.value?.audience === 'pengguna' ? 'pengguna' : questionnaire.value?.audience || 'alumni'
-  XLSX.writeFile(wb, `template-jawaban-${suffix}.xlsx`)
-  uploadMessage.value = 'Template standar berhasil diunduh.'
 }
 
 const viewMode = ref('all') // all | latest
@@ -1860,9 +1650,43 @@ watch(
   { immediate: true },
 )
 
-const exportAllData = (format = 'xlsx') => {
-  const records = isRecordFilterActive.value ? filteredRecords.value : allRecords.value
-  if (!records.length) {
+const buildExportFilters = () => ({
+  fakultas: filters.fakultas === 'all' ? '' : filters.fakultas,
+  prodi: filters.prodi === 'all' ? '' : filters.prodi,
+  tahun: filters.tahun === 'all' ? '' : filters.tahun,
+  status: filters.status.includes('all') ? [] : [...filters.status],
+  question_id: filters.questionId || null,
+  answer_value: filters.answerValue || '',
+})
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const downloadBlob = (blob, fileName) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+const waitForExportReady = async (exportId) => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const status = await tracerService.getExportStatus(exportId)
+    if (status?.status === 'ready') return status
+    if (status?.status === 'failed') {
+      throw new Error(status?.error_message || 'Export gagal diproses.')
+    }
+    await sleep(1000)
+  }
+  throw new Error('Export belum selesai diproses. Coba lagi beberapa saat lagi.')
+}
+
+const exportAllData = async (format = 'xlsx') => {
+  const hasExportableRecords = isRecordFilterActive.value ? filteredRecords.value.length > 0 : allRecords.value.length > 0
+  if (!hasExportableRecords) {
     const message = isRecordFilterActive.value
       ? 'Tidak ada data jawaban yang sesuai filter untuk diekspor.'
       : 'Tidak ada data jawaban untuk diekspor.'
@@ -1870,43 +1694,24 @@ const exportAllData = (format = 'xlsx') => {
     return
   }
 
-  let aoa = []
-  if (questionnaire.value?.audience === 'alumni') {
-    aoa = buildAlumniTemplateAoA(records, getRawValue)
-  } else {
-    const questions = questionBank.value
-    const standardHeaders = ['Nama', 'NIM', 'Fakultas', 'Prodi', 'Tahun Lulus', 'Status', 'Timestamp']
-    const questionHeaders = questions.map((q) => q.label)
-    const header = [...standardHeaders, ...questionHeaders]
-    const rows = records.map((resp) => {
-      const raw = resp.raw || {}
-      const row = [
-        resp.nama,
-        resp.nim,
-        resp.fakultas,
-        resp.prodi,
-        resp.tahun,
-        resp.status,
-        resp.timestamp ? new Date(resp.timestamp).toLocaleString('id-ID') : '-',
-      ]
-      questions.forEach((q) => {
-        const val = getRawValue(raw, q.key)
-        row.push(q.formatter ? q.formatter(val) : formatAnswerValue(val))
-      })
-      return row
+  exportLoading.value = true
+  try {
+    const request = await tracerService.requestResponsesExport({
+      questionnaire_id: questionnaireId.value,
+      format,
+      filters: buildExportFilters(),
     })
-    aoa = [header, ...rows]
-  }
+    const exportId = request?.export_id
+    if (!exportId) throw new Error('Export tidak berhasil dibuat.')
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Jawaban')
-
-  const fileName = `jawaban_${questionnaireId.value}_${new Date().getTime()}.${format}`
-  if (format === 'csv') {
-    XLSX.writeFile(wb, fileName, { bookType: 'csv' })
-  } else {
-    XLSX.writeFile(wb, fileName)
+    await waitForExportReady(exportId)
+    const blob = await tracerService.downloadExport(exportId, { responseType: 'blob' })
+    downloadBlob(blob, `jawaban_${questionnaireId.value}_${Date.now()}.${format}`)
+  } catch (err) {
+    console.error(err)
+    window.alert(err?.response?.data?.message || err?.message || 'Gagal mengekspor jawaban.')
+  } finally {
+    exportLoading.value = false
   }
 }
 
@@ -2365,17 +2170,19 @@ onUnmounted(() => {
           </button>
           <button
             type="button"
-            class="rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100"
+            class="rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="exportLoading"
             @click="exportAllData('csv')"
           >
-            Export CSV
+            {{ exportLoading ? 'Menyiapkan...' : 'Export CSV' }}
           </button>
           <button
             type="button"
-            class="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+            class="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="exportLoading"
             @click="exportAllData('xlsx')"
           >
-            Export Excel
+            {{ exportLoading ? 'Menyiapkan...' : 'Export Excel' }}
           </button>
           <button
             type="button"
@@ -2386,8 +2193,9 @@ onUnmounted(() => {
           </button>
           <button
             type="button"
-            class="rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-xs font-semibold text-teal-700 shadow-sm transition hover:bg-teal-100"
-            :disabled="uploadLoading"
+            class="rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-xs font-semibold text-teal-700 shadow-sm transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="uploadLoading || !canImportXlsxResponses"
+            :title="canImportXlsxResponses ? 'Impor Excel jawaban' : 'Akses import jawaban XLSX belum aktif untuk role ini'"
             @click="handleUploadClick"
           >
             {{ uploadLoading ? 'Memproses...' : 'Impor Excel jawaban' }}
@@ -2413,6 +2221,7 @@ onUnmounted(() => {
         type="file"
         accept=".xlsx,.xls"
         class="hidden"
+        :disabled="uploadLoading || !canImportXlsxResponses"
         @change="importFromExcel"
       />
       <div v-if="uploadMessage || uploadError" class="mb-3 text-xs">
@@ -3161,4 +2970,3 @@ onUnmounted(() => {
   background: #cbd5e1;
 }
 </style>
-

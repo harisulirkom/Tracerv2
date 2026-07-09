@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import * as XLSX from 'xlsx'
 import AdminShell from '../components/AdminShell.vue'
 import LoadingOverlay from '../components/LoadingOverlay.vue'
 import tracerService from '../services/tracerService'
@@ -1194,8 +1193,7 @@ const unlockCurrentScope = () => {
   )
 }
 
-const triggerTextDownload = (filename, content, mimeType) => {
-  const blob = new Blob([content], { type: mimeType })
+const triggerBlobDownload = (filename, blob) => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -1206,56 +1204,17 @@ const triggerTextDownload = (filename, content, mimeType) => {
   URL.revokeObjectURL(url)
 }
 
-const exportReport = (format = 'xlsx') => {
-  const generatedAt = new Date().toISOString()
+const exportReport = async (format = 'xlsx') => {
   const scope = currentScope.value
   const sourceMode = useFrozenSnapshot.value && activeFreeze.value ? 'snapshot_terkunci' : 'live_data'
-  const summaryRows = [
-    ['Tahun Akreditasi', scope.accreditationYear],
-    ['Fakultas', scope.fakultas === 'all' ? 'Semua fakultas' : scope.fakultas],
-    ['Prodi', scope.prodi === 'all' ? 'Semua prodi' : scope.prodi],
-    ['TS dihitung', scope.tsLabels.join(', ')],
-    ['Mode sumber', sourceMode],
-    ['Total alumni eligible', displaySummary.value.totalAlumni],
-    ['Total responden valid', displaySummary.value.totalRespondents],
-    ['Response rate (%)', Number(displaySummary.value.responseRate || 0)],
-    ['Total jawaban raw', displaySummary.value.rawResponses],
-    ['Jawaban tanpa match alumni', displaySummary.value.unmatchedResponses],
-    ['Waktu generate', new Date(generatedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })],
-  ]
-
-  const cohortRowsExport = [
-    ['Label TS', 'Tahun Lulus', 'Total Alumni', 'Responden', 'Response Rate (%)'],
-    ...displayCohortRows.value.map((row) => [
-      row.tsLabel,
-      resolveTsYear(row.tsLabel),
-      row.totalAlumni,
-      row.respondents,
-      Number(row.responseRate || 0),
-    ]),
-  ]
-
-  const workbook = XLSX.utils.book_new()
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows)
-  const cohortSheet = XLSX.utils.aoa_to_sheet(cohortRowsExport)
-  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan')
-  XLSX.utils.book_append_sheet(workbook, cohortSheet, 'Cohort TS')
-
   const dateCode = new Date().toISOString().slice(0, 10)
   const baseName = `laporan-akreditasi-ts-${scope.accreditationYear}-${dateCode}`
 
-  if (format === 'csv') {
-    const combinedAoA = [
-      ...summaryRows,
-      [],
-      ...cohortRowsExport,
-    ]
-    const csvSheet = XLSX.utils.aoa_to_sheet(combinedAoA)
-    const csv = XLSX.utils.sheet_to_csv(csvSheet)
-    triggerTextDownload(`${baseName}.csv`, csv, 'text/csv;charset=utf-8;')
-  } else {
-    XLSX.writeFile(workbook, `${baseName}.xlsx`)
-  }
+  const blob = await tracerService.downloadTracerAccreditationExport({
+    ...buildSummaryQuery(),
+    format,
+  }, { responseType: 'blob' })
+  triggerBlobDownload(`${baseName}.${format}`, blob)
 
   appendAuditLog(
     'export',

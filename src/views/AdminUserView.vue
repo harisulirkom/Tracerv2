@@ -29,6 +29,7 @@ const {
   addAuditLog,
   exportUsers,
   fetchUsers,
+  fetchRolePermissions,
   loading,
   error: loadError,
 } = useUserManagement()
@@ -406,6 +407,7 @@ const closeDetail = () => {
 const permissionModules = [
   { key: 'ikhtisar', label: 'Ikhtisar', type: 'permission' },
   { key: 'kuisioner', label: 'Kelola kuisioner', type: 'permission' },
+  { key: 'kuisionerImportXlsx', label: 'Import jawaban XLSX', type: 'permission' },
   { key: 'alumni', label: 'Daftar alumni', type: 'permission' },
   { key: 'alumniEdit', label: 'Edit data alumni', type: 'permission' },
   { key: 'bankSoal', label: 'Bank soal', type: 'permission' },
@@ -466,8 +468,9 @@ const handleAccessToggle = (key) => {
 const selectedFacultyAdmin = ref({})
 const selectedProdiAdmin = ref({})
 
-onMounted(() => {
-  fetchUsers()
+onMounted(async () => {
+  await fetchUsers()
+  await fetchRolePermissions()
   if (activeTab.value === 'Role & Akses') {
     loadRoleAccessDraft()
   }
