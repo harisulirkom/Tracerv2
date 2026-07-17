@@ -135,6 +135,7 @@ const state = reactive({
   items: [],
   loading: false,
   error: '',
+  remoteLoaded: false,
   meta: {
     total: 0,
   },
@@ -212,7 +213,17 @@ const normalizeAlumni = (list = []) => {
 }
 
 const persist = () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items))
+  // Data dari API dapat berisi ribuan alumni dan tidak boleh disalin ke
+  // localStorage. Selain membuang memori, Safari memiliki kuota yang lebih
+  // kecil dan akan melempar QuotaExceededError saat batasnya terlampaui.
+  if (state.remoteLoaded) return
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items))
+  } catch (e) {
+    // Cache lokal bersifat opsional; kegagalannya tidak boleh menggagalkan UI.
+    clearPersisted()
+  }
 }
 
 const clearPersisted = () => {
@@ -247,6 +258,7 @@ const loadLocal = () => {
       const normalized = normalizeAlumni(parsed)
       if (normalized.length) {
         state.items = normalized
+        state.remoteLoaded = false
         updateMetaTotal(normalized.length)
       }
     }
@@ -257,6 +269,7 @@ const loadLocal = () => {
 
 const seedDefault = () => {
   state.items = normalizeAlumni(defaultAlumni)
+  state.remoteLoaded = false
   updateMetaTotal(state.items.length)
   persist()
 }
@@ -278,8 +291,8 @@ export const useAlumni = () => {
         const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
         const normalized = normalizeAlumni(list)
         state.items = normalized
+        state.remoteLoaded = true
         clearPersisted()
-        persist()
         const total = resp?.meta?.total ?? normalized.length
         updateMetaTotal(total)
         return normalized
@@ -289,6 +302,7 @@ export const useAlumni = () => {
         state.error = 'Token autentikasi tidak ditemukan. Silakan login ulang untuk memuat data alumni.'
         if (forceRemote) {
           state.items = []
+          state.remoteLoaded = false
           clearPersisted()
           return []
         }
@@ -324,6 +338,7 @@ export const useAlumni = () => {
           }
         } else {
           state.items = []
+          state.remoteLoaded = false
           clearPersisted()
         }
       }
