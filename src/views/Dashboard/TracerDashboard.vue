@@ -127,7 +127,7 @@ const waitingProdiChartData = computed(() => ({
 const locationDistributionChartData = computed(() => {
   const distribution = locations.value.distribution
   return {
-    labels: ['Lokal', 'Luar Daerah', 'Luar Negeri'],
+    labels: ['Lokal', 'Luar Daerah', 'Luar Negeri', 'Luar Pulau'],
     datasets: [
       {
         data: [distribution.lokal, distribution.luar_daerah, distribution.luar_negeri],
