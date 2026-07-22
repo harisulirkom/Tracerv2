@@ -300,7 +300,7 @@ watch(prodiOptions, (options) => {
         <label class="space-y-1">
           <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Fakultas</span>
           <select v-model="filters.fakultas" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700">
-            <option value="">Semua Fakultas</option>
+            <option value="">Semua Fakultas Yang Ada</option>
             <option v-for="faculty in filterOptions.faculties" :key="faculty" :value="faculty">{{ faculty }}</option>
           </select>
         </label>
