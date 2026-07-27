@@ -23,6 +23,7 @@ import AdminKuisionerQuestionsView from './views/AdminKuisionerQuestionsView.vue
 import AdminBankSoalView from './views/AdminBankSoalView.vue'
 import AdminKuisionerDetailView from './views/AdminKuisionerDetailView.vue'
 import AdminTracerAccreditationView from './views/AdminTracerAccreditationView.vue'
+import AdminTracerStudyReportsView from './views/AdminTracerStudyReportsView.vue'
 import AdminCtaView from './views/AdminCtaView.vue'
 import AdminLowonganView from './views/AdminLowonganView.vue'
 import AdminArtikelView from './views/AdminArtikelView.vue'
@@ -94,6 +95,12 @@ const routes = [
     name: 'AdminTracerAccreditation',
     component: AdminTracerAccreditationView,
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/admin/laporan-tracer',
+    name: 'AdminTracerStudyReports',
+    component: AdminTracerStudyReportsView,
+    meta: { requiresAuth: true, requiresCentralAdmin: true },
   },
   { path: '/admin', name: 'Admin', component: AdminView, meta: { requiresAuth: true } },
   { path: '/admin/profile', name: 'AdminProfile', component: AdminProfileView, meta: { requiresAuth: true } },
@@ -216,6 +223,11 @@ router.beforeEach((to, from, next) => {
   const role = normalizeRole(roleKey)
   const rolePermissions = permissions[roleKey] || {}
   const isSuperAdmin = role === 'super admin'
+  const isCentralAdmin = isSuperAdmin || role === 'admin universitas'
+  if (to.meta.requiresCentralAdmin && !isCentralAdmin) {
+    next('/admin')
+    return
+  }
   const applyRestrictedMenu =
     accessControl.value?.restrictFacultyMenu &&
     (role === 'admin fakultas' || role === 'admin prodi')

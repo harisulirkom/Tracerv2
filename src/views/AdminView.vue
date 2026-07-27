@@ -190,6 +190,7 @@ const adminNav = [
   { label: 'Ikhtisar', target: 'overview', icon: 'overview', permissionKey: 'ikhtisar' },
   { label: 'Kuisioner', route: '/admin/kuisioner', icon: 'kuisioner', permissionKey: 'kuisioner' },
   { label: 'Akreditasi tracer', route: '/admin/tracer-akreditasi', icon: 'akreditasi', permissionKey: 'kuisioner' },
+  { label: 'Laporan Tracer Study', route: '/admin/laporan-tracer', icon: 'laporan', centralOnly: true },
   { label: 'Daftar alumni', route: '/admin/alumni', icon: 'alumni', permissionKey: 'alumni' },
   { label: 'Konten Alumni', route: '/admin/alumni-hub', icon: 'alumni', permissionKey: 'alumni' },
   { label: 'Bank soal', route: '/admin/bank-soal', icon: 'bank', permissionKey: 'bankSoal' },
@@ -270,6 +271,7 @@ const restrictFacultyMenu = computed(
 )
 const rolePermissions = computed(() => permissions[currentRoleKey.value] || {})
 const hasNavAccess = (item) => {
+  if (item.centralOnly && !isSuperAdmin.value && normalizedRole.value !== 'admin universitas') return false
   if (isSuperAdmin.value) return true
   if (!item.permissionKey) return true
   const rolePerms = rolePermissions.value
@@ -1094,6 +1096,13 @@ const iconPaths = {
     'M7 4h10v2a5 5 0 0 1-5 5 5 5 0 0 1-5-5V4z',
     'M5 6H3a2 2 0 0 0 0 4h2',
     'M19 6h2a2 2 0 0 1 0 4h-2',
+  ],
+  laporan: [
+    'M6 3h8l4 4v14H6z',
+    'M14 3v5h5',
+    'M9 17v-4',
+    'M12 17v-7',
+    'M15 17v-2',
   ],
   alumni: [
     'M12 13c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z',

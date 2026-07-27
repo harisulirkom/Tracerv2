@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useQuestionnaires } from '../stores/questionnaires'
+import TracerStudyReportsSection from '../components/TracerStudyReportsSection.vue'
 
 const router = useRouter()
 const { locale } = useI18n()
@@ -312,6 +313,8 @@ onMounted(() => {
         </article>
       </div>
     </section>
+
+    <TracerStudyReportsSection />
 
     <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div class="grid gap-4 sm:grid-cols-3">
