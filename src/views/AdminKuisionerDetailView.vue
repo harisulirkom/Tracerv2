@@ -7,6 +7,7 @@ import { useQuestionnaires } from '../stores/questionnaires'
 import { useSubmissions } from '../stores/submissions'
 import { jsPDF } from 'jspdf'
 import tracerService, { getResponsesSummary } from '../services/tracerService'
+import { normalizeSalaryMillion, normalizeWaitingMonths } from '../utils/tracerMetrics'
 import { useAlumni } from '../stores/alumni'
 import {
   ALUMNI_TEMPLATE_HEADERS,
@@ -228,16 +229,13 @@ const deriveStatusFromLabel = (label) => {
 }
 
 const toNumber = (val) => {
-  const num = Number(String(val ?? '').replace(/[^0-9.-]/g, ''))
-  return Number.isFinite(num) ? num : 0
+  if (val === null || val === undefined || String(val).trim() === '') return null
+  const number = Number(String(val).replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(number) ? number : null
 }
 
 const normalizeSalaryToJt = (val) => {
-  const raw = toNumber(val)
-  if (!raw) return 0
-  // heuristik: jika > 1000 anggap rupiah, konversi ke juta; jika kecil, anggap sudah juta
-  if (raw > 1000) return Math.round((raw / 1_000_000) * 10) / 10
-  return Math.round(raw * 10) / 10
+  return normalizeSalaryMillion(val)
 }
 
 const getFormData = (payload) => {
@@ -429,14 +427,15 @@ const findValueByKeywords = (source, keywords = []) => {
 const mapAlumniRecord = (s) => {
   const formData = getFormData(s)
   const statusAnswer = pickFirstValue(formData, ['status', 'status_pekerjaan']) || s.status
-  const waitMonths = toNumber(
-    pickFirstValue(formData, [
+  const rawWaitMonths = pickFirstValue(formData, [
       'bekerja_bulanDapat',
       'bekerja_bulanTidak',
-      'mencari_mulaiSetelah',
-      'mencari_mulaiSebelum',
       'waitMonths',
-    ]) || s.waitMonths,
+    ])
+  const waitMonths = normalizeWaitingMonths(
+    rawWaitMonths !== '' && rawWaitMonths !== null && rawWaitMonths !== undefined
+      ? rawWaitMonths
+      : s.waitMonths,
   )
   return {
     id: s.id,
@@ -480,8 +479,8 @@ const mapPenggunaRecord = (s) => {
     namaAlumni: namaAlumni || s.nama_alumni || '-',
     tahun: null,
     status: 'pengguna',
-    waitMonths: 0,
-    salary: 0,
+    waitMonths: null,
+    salary: null,
     province: lokasi || '-',
     industry: industry || 'Lainnya',
     suitability: 0,
@@ -527,8 +526,8 @@ const mapRecordsByAudience = (items = []) => {
       fakultas: s.fakultas || '-',
       tahun: null,
       status: 'umum',
-      waitMonths: 0,
-      salary: 0,
+      waitMonths: null,
+      salary: null,
       province: s.province || '-',
       industry: s.industry || '-',
       suitability: 0,
@@ -658,10 +657,10 @@ const summary = computed(() => {
   const bekerjaCount = data.filter((d) => ['bekerja', 'wiraswasta'].includes(d.status)).length
   const employedPercent = total ? Math.round((bekerjaCount / denom) * 100) : 0
 
-  const waits = data.filter((d) => d.waitMonths >= 0)
+  const waits = data.filter((d) => Number.isFinite(d.waitMonths) && d.waitMonths >= 0)
   const waitAvg = waits.length ? waits.reduce((sum, d) => sum + d.waitMonths, 0) / waits.length : 0
 
-  const salaryItems = data.filter((d) => d.salary > 0)
+  const salaryItems = data.filter((d) => Number.isFinite(d.salary) && d.salary > 0)
   const salaryAvg = salaryItems.length
     ? salaryItems.reduce((sum, d) => sum + d.salary, 0) / salaryItems.length
     : 0
@@ -694,7 +693,7 @@ const summary = computed(() => {
   return {
     total,
     employedPercent,
-    waitAvg: waitAvg.toFixed(1),
+    waitAvg: waits.length ? waitAvg.toFixed(1) : null,
     salaryAvg: salaryAvg ? `${salaryAvg.toFixed(1)} jt` : 'N/A',
     topIndustry,
     statusCounts,
@@ -1800,7 +1799,8 @@ watch(
             </div>
             <div class="rounded-2xl bg-slate-50 p-4">
               <p class="text-xs font-semibold text-slate-500">Masa tunggu rata-rata</p>
-              <p class="text-2xl font-semibold text-slate-900">{{ summary.waitAvg }} bln</p>
+              <p class="text-2xl font-semibold text-slate-900">{{ summary.waitAvg == null ? '-' : `${summary.waitAvg} bln` }}</p>
+              <p v-if="summary.waitAvg == null" class="text-[10px] text-slate-400">Belum ada data valid</p>
             </div>
             <div class="rounded-2xl bg-slate-50 p-4">
               <p class="text-xs font-semibold text-slate-500">Gaji rata-rata</p>

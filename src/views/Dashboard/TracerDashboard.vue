@@ -12,6 +12,10 @@ const insights = ref(null)
 const loading = ref(true)
 const error = ref('')
 
+const UIN_GREEN = '#22c55e'
+const UIN_GREEN_ALPHA = 'rgba(34, 197, 94, 0.6)'
+const UIN_GREEN_PALETTE = ['#14532d', '#166534', '#15803d', '#16a34a', UIN_GREEN, '#4ade80']
+
 const filters = reactive({
   fakultas: '',
   prodi: '',
@@ -108,7 +112,7 @@ const waitingCohortChartData = computed(() => ({
     {
       label: 'Rerata bulan',
       data: waitingTime.value.per_cohort.map((item) => item.value),
-      backgroundColor: '#2563eb',
+      backgroundColor: UIN_GREEN,
     },
   ],
 }))
@@ -119,7 +123,7 @@ const waitingProdiChartData = computed(() => ({
     {
       label: 'Bulan',
       data: waitingTime.value.per_prodi.map((item) => item.value),
-      backgroundColor: '#14b8a6',
+      backgroundColor: UIN_GREEN,
     },
   ],
 }))
@@ -131,7 +135,7 @@ const locationDistributionChartData = computed(() => {
     datasets: [
       {
         data: [distribution.lokal, distribution.luar_daerah, distribution.luar_negeri],
-        backgroundColor: ['#0f766e', '#f97316', '#2563eb'],
+        backgroundColor: [UIN_GREEN, '#16a34a', '#86efac'],
       },
     ],
   }
@@ -144,7 +148,7 @@ const companyTypeChartData = computed(() => {
     datasets: [
       {
         data: entries.map(([, value]) => value),
-        backgroundColor: ['#14b8a6', '#22c55e', '#0ea5e9', '#f97316', '#6366f1', '#fb7185'],
+        backgroundColor: UIN_GREEN_PALETTE,
       },
     ],
   }
@@ -156,12 +160,12 @@ const workplaceLevelChartData = computed(() => ({
     {
       label: 'Persentase',
       data: Object.values(levels.value.levels),
-      backgroundColor: '#a855f7',
+      backgroundColor: UIN_GREEN,
     },
   ],
 }))
 
-const workplaceTrendPalette = ['#14b8a6', '#0ea5e9', '#f97316', '#22c55e', '#6366f1', '#fb7185']
+const workplaceTrendPalette = UIN_GREEN_PALETTE
 const workplaceTrendChartData = computed(() => {
   const trend = workplace.value.trends ?? { labels: [], datasets: [] }
   return {
@@ -180,7 +184,7 @@ const levelTrendChartData = computed(() => {
     labels: trend.labels,
     datasets: (trend.datasets ?? []).map((dataset) => ({
       ...dataset,
-      backgroundColor: '#a855f7',
+      backgroundColor: UIN_GREEN,
     })),
   }
 })
@@ -191,7 +195,7 @@ const fieldFitProdiChartData = computed(() => ({
     {
       label: 'Persentase',
       data: fieldFit.value.per_prodi.map((item) => item.value),
-      backgroundColor: '#22d3ee',
+      backgroundColor: UIN_GREEN,
     },
   ],
 }))
@@ -204,7 +208,7 @@ const jobSearchMethodChartData = computed(() => {
       {
         label: 'Responden',
         data: entries.map(([, value]) => value),
-        backgroundColor: '#0ea5e9',
+        backgroundColor: UIN_GREEN,
       },
     ],
   }
@@ -233,8 +237,8 @@ const competencyIndividualData = computed(() => ({
     {
       label: 'Individu',
       data: competencies.value.individual.values,
-      backgroundColor: 'rgba(14, 165, 233, 0.6)',
-      borderColor: '#0ea5e9',
+      backgroundColor: UIN_GREEN_ALPHA,
+      borderColor: UIN_GREEN,
     },
   ],
 }))
@@ -245,8 +249,8 @@ const competencyLearningData = computed(() => ({
     {
       label: 'Pendekatan Pembelajaran',
       data: competencies.value.learning.values,
-      backgroundColor: 'rgba(252, 211, 77, 0.6)',
-      borderColor: '#facc15',
+      backgroundColor: UIN_GREEN_ALPHA,
+      borderColor: UIN_GREEN,
     },
   ],
 }))
@@ -288,7 +292,7 @@ watch(prodiOptions, (options) => {
 <template>
   <main class="mx-auto max-w-6xl space-y-6 py-8 px-4">
     <header class="space-y-2 text-center">
-      <p class="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">CDC UIN Tracer Study</p>
+      <p class="text-xs font-semibold uppercase tracking-[0.3em] text-[#22C55E]">CDC UIN Tracer Study</p>
       <h1 class="text-3xl font-semibold text-slate-900">Dashboard Admin Tracer Study</h1>
       <p class="text-sm text-slate-600">
         Analitik real-time terkait status alumni, masa tunggu kerja, lokasi penempatan, dan studi lanjut.
@@ -299,28 +303,28 @@ watch(prodiOptions, (options) => {
       <div class="grid gap-4 md:grid-cols-5">
         <label class="space-y-1">
           <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Fakultas</span>
-          <select v-model="filters.fakultas" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700">
+          <select v-model="filters.fakultas" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-green-100">
             <option value="">Semua Fakultas</option>
             <option v-for="faculty in filterOptions.faculties" :key="faculty" :value="faculty">{{ faculty }}</option>
           </select>
         </label>
         <label class="space-y-1">
           <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Prodi</span>
-          <select v-model="filters.prodi" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700">
+          <select v-model="filters.prodi" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-green-100">
             <option value="">Semua Prodi</option>
             <option v-for="prodi in prodiOptions" :key="prodi" :value="prodi">{{ prodi }}</option>
           </select>
         </label>
         <label class="space-y-1">
           <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tahun Lulus</span>
-          <select v-model="filters.tahunLulus" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700">
+          <select v-model="filters.tahunLulus" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-green-100">
             <option value="">Semua Angkatan</option>
             <option v-for="year in filterOptions.years" :key="year" :value="year">Angkatan {{ year }}</option>
           </select>
         </label>
         <label class="space-y-1">
           <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Periode Tracer</span>
-          <select v-model="filters.periode" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700">
+          <select v-model="filters.periode" class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-green-100">
             <option value="">Semua Periode</option>
             <option v-for="period in filterOptions.periods" :key="period.value" :value="period.value">
               {{ period.label }}
@@ -333,7 +337,7 @@ watch(prodiOptions, (options) => {
             type="text"
             v-model="filters.questionnaireId"
             placeholder="ID Kuisioner (opsional)"
-            class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700"
+            class="h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-[#22C55E] focus:outline-none focus:ring-2 focus:ring-green-100"
           />
         </label>
       </div>
@@ -365,7 +369,7 @@ watch(prodiOptions, (options) => {
         <div class="grid gap-4 lg:grid-cols-3">
           <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p class="text-sm font-semibold text-slate-900">Rerata Masa Tunggu (bulan)</p>
-            <p class="mt-2 text-3xl font-semibold text-emerald-600">{{ waitingTime.value.avg_wait_months ?? '-' }}</p>
+            <p class="mt-2 text-3xl font-semibold text-[#22C55E]">{{ waitingTime.value.avg_wait_months ?? '-' }}</p>
             <div class="mt-4 grid gap-3 sm:grid-cols-3">
               <div class="text-center">
                 <p class="text-xs uppercase text-slate-500">≤ 3 bulan</p>
@@ -430,7 +434,7 @@ watch(prodiOptions, (options) => {
             <div class="mt-3 flex gap-4 text-sm">
               <div>
                 <p class="text-xs uppercase text-slate-500">Sesuai bidang</p>
-                <p class="text-2xl font-semibold text-emerald-600">{{ fieldFit.value.match_percent ?? '-' }}%</p>
+                <p class="text-2xl font-semibold text-[#22C55E]">{{ fieldFit.value.match_percent ?? '-' }}%</p>
               </div>
               <div>
                 <p class="text-xs uppercase text-slate-500">Tidak butuh pendidikan tinggi</p>
@@ -481,7 +485,7 @@ watch(prodiOptions, (options) => {
         <section class="grid gap-4 lg:grid-cols-2">
           <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p class="text-sm font-semibold text-slate-900">Statistik Wirausaha</p>
-            <p class="text-3xl font-semibold text-amber-600">{{ entrepreneurship.value.total_entrepreneurs }}</p>
+            <p class="text-3xl font-semibold text-[#22C55E]">{{ entrepreneurship.value.total_entrepreneurs }}</p>
             <p class="text-xs uppercase text-slate-500 mt-2">Kesesuaian studi: {{ entrepreneurship.value.alignment_percent ?? '-' }}%</p>
             <div class="mt-3 space-y-2 text-sm text-slate-600">
               <p class="text-xs uppercase text-slate-500">Jenis usaha populer</p>
@@ -500,7 +504,7 @@ watch(prodiOptions, (options) => {
           </div>
           <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p class="text-sm font-semibold text-slate-900">Statistik Studi Lanjut</p>
-            <p class="text-3xl font-semibold text-indigo-600">{{ furtherStudy.value.total_study }}</p>
+            <p class="text-3xl font-semibold text-[#22C55E]">{{ furtherStudy.value.total_study }}</p>
             <div class="mt-3 text-sm text-slate-600">
               <p class="text-xs uppercase text-slate-500">Lokasi studi</p>
               <ul class="space-y-1">

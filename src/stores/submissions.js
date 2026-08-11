@@ -16,6 +16,15 @@ const state = reactive({
 })
 
 const load = () => {
+  if (canUseApi) {
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch (e) {
+      // Cache lama bersifat opsional dan tidak boleh menghalangi pemuatan API.
+    }
+    state.items = []
+    return
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
@@ -27,7 +36,16 @@ const load = () => {
 }
 
 const save = () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items))
+  if (canUseApi) return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.items))
+  } catch (e) {
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch (removeError) {
+      // Penyimpanan lokal hanya fallback; kegagalannya tidak boleh merusak UI.
+    }
+  }
 }
 
 load()
@@ -133,10 +151,7 @@ export const useSubmissions = () => {
       if (canUseApi && questionnaireId) {
         const resp = await tracerService.getResponses(questionnaireId, query, requestConfig)
         const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : []
-        if (list.length) {
-          state.items = list
-          save()
-        }
+        state.items = list
       }
     } catch (err) {
       state.error = silent ? '' : err?.message || 'Gagal memuat submissions'

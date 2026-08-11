@@ -161,6 +161,8 @@ const enforceSingleActivePerAudience = () => {
 }
 
 const ensureDefaultByAudience = () => {
+  if (canUseApi) return
+
   const nowIso = new Date().toISOString()
   const defaultMeta = {
     alumni: {
@@ -203,6 +205,17 @@ const ensureDefaultByAudience = () => {
 }
 
 const loadQuestionnaires = () => {
+  if (canUseApi) {
+    state.items = []
+    state.questions = {}
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch (e) {
+      // ignore storage errors
+    }
+    return
+  }
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
@@ -409,6 +422,7 @@ export const useQuestionnaires = () => {
 
   const applyListToState = (list = []) => {
     state.items = Array.isArray(list) ? list : []
+    if (!state.items.length) state.questions = {}
     ensureQuestions()
     ensureDefaultByAudience()
     enforceSingleActivePerAudience()
@@ -431,15 +445,8 @@ export const useQuestionnaires = () => {
         } else {
           const resp = await tracerService.getQuestionnaires(params, requestConfig)
           list = normalizeFromApi(resp)
-          if (!list.length) {
-            list = await fetchActiveFallbackList(requestConfig)
-          }
         }
-        if (list.length) {
-          applyListToState(list)
-        } else if (!state.items.length) {
-          loadQuestionnaires()
-        }
+        applyListToState(list)
       } else {
         loadQuestionnaires()
       }
@@ -449,20 +456,8 @@ export const useQuestionnaires = () => {
       } else {
         state.error = ''
       }
-      if ((!state.items.length || publicMode) && canUseApi) {
-        const fallbackList = await fetchActiveFallbackList(requestConfig)
-        if (fallbackList.length) {
-          applyListToState(fallbackList)
-          return
-        }
-      }
-      if (!state.items.length) {
-        loadQuestionnaires()
-      }
-      if (!state.items.length) {
-        ensureDefaultByAudience()
-        saveQuestionnaires()
-      }
+      if (canUseApi) applyListToState([])
+      else loadQuestionnaires()
     } finally {
       state.loading = false
     }
@@ -548,12 +543,12 @@ export const useQuestionnaires = () => {
     } catch (err) {
       const status = err?.response?.status
       if (status === 404) {
-        // Backend belum menyediakan kuisioner aktif; gunakan fallback lokal tanpa menampilkan error 404.
+        // API adalah sumber kebenaran: tidak ada kuisioner aktif berarti empty state.
         state.error = ''
-        return findActiveByAudience(audience)
+        return canUseApi ? null : findActiveByAudience(audience)
       }
       state.error = silent ? '' : err?.message || 'Gagal memuat kuisioner aktif'
-      return findActiveByAudience(audience)
+      return canUseApi ? null : findActiveByAudience(audience)
     } finally {
       state.loading = false
     }

@@ -42,6 +42,7 @@ npm run build
 Salin `.env.example` menjadi `.env` lalu sesuaikan:
 ```
 VITE_API_BASE_URL=https://api.cdc.local     # Base URL backend (REST)
+VITE_API_PROXY_TARGET=http://127.0.0.1:8001 # Target proxy saat VITE_API_BASE_URL=/api
 VITE_DASHBOARD_DATA_URL=/api/dashboard.json # Fallback dashboard bila backend belum siap
 VITE_APP_NAME=Tracer CDC
 VITE_APP_ENV=local

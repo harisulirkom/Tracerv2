@@ -15,6 +15,7 @@ import LoginView from './views/LoginView.vue'
 import AdminView from './views/AdminView.vue'
 import PublicLayout from './views/PublicLayout.vue'
 import AdminProfileView from './views/AdminProfileView.vue'
+import AdminStrukturOrganisasiView from './views/AdminStrukturOrganisasiView.vue'
 import AdminBeritaView from './views/AdminBeritaView.vue'
 import AdminAlumniView from './views/AdminAlumniView.vue'
 import AdminAlumniHubView from './views/AdminAlumniHubView.vue'
@@ -104,6 +105,12 @@ const routes = [
   },
   { path: '/admin', name: 'Admin', component: AdminView, meta: { requiresAuth: true } },
   { path: '/admin/profile', name: 'AdminProfile', component: AdminProfileView, meta: { requiresAuth: true } },
+  {
+    path: '/admin/struktur-organisasi',
+    name: 'AdminStrukturOrganisasi',
+    component: AdminStrukturOrganisasiView,
+    meta: { requiresAuth: true, requiresCentralAdmin: true },
+  },
   { path: '/admin/berita', name: 'AdminBerita', component: AdminBeritaView, meta: { requiresAuth: true } },
   { path: '/admin/alumni', name: 'AdminAlumni', component: AdminAlumniView, meta: { requiresAuth: true } },
   { path: '/admin/alumni-hub', name: 'AdminAlumniHub', component: AdminAlumniHubView, meta: { requiresAuth: true } },

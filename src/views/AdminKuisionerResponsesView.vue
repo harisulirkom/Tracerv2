@@ -15,6 +15,7 @@ import {
   buildAlumniTemplateAoA,
   buildAlumniTemplateDataRow,
 } from '../utils/alumniExportTemplate'
+import { normalizeSalaryMillion, normalizeWaitingMonths } from '../utils/tracerMetrics'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,6 +52,9 @@ const exportLoading = ref(false)
 const logoAssetUrl = new URL('../assets/uin.png', import.meta.url).href
 const logoDataUrl = ref(null)
 const MAX_RESPONSE_LIMIT = 10000
+const INITIAL_RESPONSE_LIMIT = 50
+const serverSummary = ref(null)
+const allResponsesLoaded = ref(false)
 
 const formatAnswerValue = (val) => {
   if (val == null) return ''
@@ -519,16 +523,13 @@ const normalizeStatus = (val, fallback = 'belum') => {
 }
 
 const toNumber = (val) => {
-  // Strip all non-digits (handle 5.000.000 or Rp 5.000.000)
-  const num = Number(String(val ?? '').replace(/[^0-9]/g, ''))
-  return Number.isFinite(num) ? num : 0
+  if (val === null || val === undefined || String(val).trim() === '') return null
+  const number = Number(String(val).replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(number) ? number : null
 }
 
 const normalizeSalaryToJt = (val) => {
-  const raw = toNumber(val)
-  if (!raw) return 0
-  if (raw > 1000) return Math.round((raw / 1_000_000) * 10) / 10
-  return Math.round(raw * 10) / 10
+  return normalizeSalaryMillion(val)
 }
 
 const normalizeAnswerText = (value) => {
@@ -658,17 +659,15 @@ const mapAlumniRecord = (s) => {
   
   // Priority 1: Check formData for specific keys (most reliable)
   const formData = s.raw?.formData || s.raw?.form_data || s.formData || s.form_data || {}
-  if (formData.bekerja_bulanDapat) {
+  if (formData.bekerja_bulanDapat !== undefined && formData.bekerja_bulanDapat !== '') {
     rawWait = formData.bekerja_bulanDapat
-  } else if (formData.mencari_mulaiSetelah) {
-    rawWait = formData.mencari_mulaiSetelah
-  } else if (formData.mencari_mulaiSebelum) {
-    rawWait = formData.mencari_mulaiSebelum
+  } else if (formData.bekerja_bulanTidak !== undefined && formData.bekerja_bulanTidak !== '') {
+    rawWait = formData.bekerja_bulanTidak
   }
   
   // Priority 2: Try direct properties
   if (rawWait == null || rawWait === '') {
-     rawWait = s.waitMonths || s.bekerja_bulanDapat || s.mencari_mulaiSetelah || s.mencari_mulaiSebelum
+     rawWait = s.waitMonths ?? s.bekerja_bulanDapat ?? s.bekerja_bulanTidak
   }
   
   // Priority 3: Try answers array (only if still not found)
@@ -683,7 +682,7 @@ const mapAlumniRecord = (s) => {
     if (waitKey) rawWait = getRawValue(s.raw || s, waitKey)
   }
   
-  const waitMonths = toNumber(rawWait)
+  const waitMonths = normalizeWaitingMonths(rawWait)
 
   // 2. Salary
   const salaryKeywords = ['pendapatan', 'gaji', 'wage', 'salary', 'penghasilan', 'income', 'bayaran', 'honor', 'upah']
@@ -744,8 +743,8 @@ const mapPenggunaRecord = (s) => {
     fakultas: s.fakultas || s.lokasi || '-',
     tahun: null,
     status: 'pengguna',
-    waitMonths: 0,
-    salary: 0,
+    waitMonths: null,
+    salary: null,
     province: s.lokasi || '-',
     industry: s.bidang || 'Lainnya',
     eduFit: s.kinerja || '-',
@@ -764,8 +763,8 @@ const mapUmumRecord = (s) => {
     fakultas: s.fakultas || '-',
     tahun: null,
     status: 'umum',
-    waitMonths: 0,
-    salary: 0,
+    waitMonths: null,
+    salary: null,
     province: s.province || '-',
     industry: s.industry || '-',
     eduFit: '-',
@@ -1038,8 +1037,7 @@ const summary = computed(() => {
     data.reduce((acc, d) => ({ ...acc, [d.fakultas]: (acc[d.fakultas] || 0) + 1 }), {}),
   ).map(([label, value]) => ({ label, value }))
 
-  // Fix: Include 0 values for salary and waitTimes if valid (assuming > -1)
-  const salaries = data.map((d) => d.salary).filter((n) => n >= 0).sort((a, b) => a - b)
+  const salaries = data.map((d) => d.salary).filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => a - b)
   const salaryMean = salaries.length ? salaries.reduce((a, b) => a + b, 0) / salaries.length : 0
   const salaryMedian =
     salaries.length === 0
@@ -1057,8 +1055,7 @@ const summary = computed(() => {
   const employmentRate = total ? (workingCount / total) * 100 : 0
 
   // 2. Waiting Time Analysis
-  // Fix: Filter >= 0 instead of > 0
-  const waitTimes = data.map((d) => d.waitMonths).filter((n) => n >= 0).sort((a, b) => a - b)
+  const waitTimes = data.map((d) => d.waitMonths).filter((n) => Number.isFinite(n) && n >= 0).sort((a, b) => a - b)
   const waitMean = waitTimes.length ? waitTimes.reduce((a, b) => a + b, 0) / waitTimes.length : 0
   const waitMedian =
     waitTimes.length === 0
@@ -1091,17 +1088,39 @@ const summary = computed(() => {
       percentage: workingRecords.length ? Math.round((item.count / workingRecords.length) * 100) : 0,
     }))
 
+  const canUseServerSummary = serverSummary.value && !isRecordFilterActive.value && viewMode.value === 'all'
+  const serverMetrics = canUseServerSummary ? serverSummary.value.metrics || {} : {}
+  const serverStatusCounts = canUseServerSummary && Array.isArray(serverSummary.value.statusCounts)
+    ? serverSummary.value.statusCounts.map((item) => {
+        const label = String(item.label || '')
+        const lower = label.toLowerCase()
+        const key = lower.includes('wira')
+          ? 'wiraswasta'
+          : lower.includes('studi')
+            ? 'melanjutkan'
+            : lower.includes('mencari')
+              ? 'mencari'
+              : lower.includes('belum')
+                ? 'belum'
+                : 'bekerja'
+        return { ...item, key }
+      })
+    : statusCounts
+
   return {
-    total,
-    statusCounts,
+    total: canUseServerSummary ? Number(serverSummary.value.total || 0) : total,
+    statusCounts: serverStatusCounts,
     prodiCounts,
     fakultasCounts,
-    salaryMean,
+    salaryMean: canUseServerSummary ? serverMetrics.salary?.mean ?? null : (salaries.length ? salaryMean : null),
+    salaryValidCount: canUseServerSummary ? Number(serverMetrics.salary?.valid_count || 0) : salaries.length,
     salaryMedian,
     // New Metrics
-    employmentRate: Math.round(employmentRate * 10) / 10,
-    waitMean: Math.round(waitMean * 10) / 10,
-    waitMedian: Math.round(waitMedian * 10) / 10,
+    employmentRate: canUseServerSummary
+      ? Number(serverSummary.value.employedPercent || 0)
+      : Math.round(employmentRate * 10) / 10,
+    waitMean: canUseServerSummary ? serverMetrics.waiting_time?.mean ?? null : (waitTimes.length ? Math.round(waitMean * 10) / 10 : null),
+    waitValidCount: canUseServerSummary ? Number(serverMetrics.waiting_time?.valid_count || 0) : waitTimes.length,
     topIndustries: industryStats,
     textPool,
   }
@@ -1111,7 +1130,7 @@ const animatedSummary = ref({
   total: 0,
   employmentRate: 0,
   salaryMean: 0,
-  waitMedian: 0,
+  waitMean: 0,
   avgRecruitment: { average: 0, count: 0 },
   statusCounts: [],
   topIndustries: [],
@@ -1165,7 +1184,7 @@ const animateSummaryValues = (target) => {
       total: lerp(Number(start.total || 0), Number(target.total || 0), ease),
       employmentRate: lerp(Number(start.employmentRate || 0), Number(target.employmentRate || 0), ease),
       salaryMean: lerp(Number(start.salaryMean || 0), Number(target.salaryMean || 0), ease),
-      waitMedian: lerp(Number(start.waitMedian || 0), Number(target.waitMedian || 0), ease),
+      waitMean: lerp(Number(start.waitMean || 0), Number(target.waitMean || 0), ease),
       avgRecruitment: {
         average: lerp(
           Number(start.avgRecruitment?.average || 0),
@@ -1198,7 +1217,7 @@ const summaryAnimated = computed(() => ({
   total: animatedSummary.value.total,
   employmentRate: animatedSummary.value.employmentRate,
   salaryMean: animatedSummary.value.salaryMean,
-  waitMedian: animatedSummary.value.waitMedian,
+  waitMean: animatedSummary.value.waitMean,
   avgRecruitment: animatedSummary.value.avgRecruitment,
   statusCounts: animatedSummary.value.statusCounts,
   topIndustries: animatedSummary.value.topIndustries,
@@ -2116,16 +2135,33 @@ const loadData = async () => {
     await fetchQuestionnaires()
   }
   if (questionnaire.value?.id) {
-    fetchQuestions(questionnaire.value.id)
-    await fetchSubmissions({
-      questionnaireId: questionnaire.value.id,
-      limit: MAX_RESPONSE_LIMIT,
-      per_page: MAX_RESPONSE_LIMIT,
-      all: 1,
-      include_answers: 1,
-    })
+    await fetchQuestions(questionnaire.value.id)
+    const [summaryResponse] = await Promise.all([
+      tracerService.getResponsesSummary(questionnaire.value.id).catch(() => null),
+      fetchSubmissions({
+        questionnaireId: questionnaire.value.id,
+        per_page: INITIAL_RESPONSE_LIMIT,
+        include_answers: 0,
+      }),
+    ])
+    serverSummary.value = summaryResponse?.data || summaryResponse || null
   }
 }
+
+const loadAllResponsesForAnalytics = async () => {
+  if (!questionnaire.value?.id || allResponsesLoaded.value) return
+  await fetchSubmissions({
+    questionnaireId: questionnaire.value.id,
+    per_page: MAX_RESPONSE_LIMIT,
+    all: 1,
+    include_answers: 1,
+  })
+  allResponsesLoaded.value = true
+}
+
+watch(tab, (value) => {
+  if (value === 'questions') loadAllResponsesForAnalytics()
+})
 
 const handleOutsideClick = () => {
   if (openFilter.value) {
@@ -2551,7 +2587,10 @@ onUnmounted(() => {
               </div>
               <div>
                 <p class="text-xs font-medium text-slate-500">Rerata Gaji (Mean)</p>
-                <p class="text-2xl font-bold text-slate-900">Rp {{ summaryAnimated.salaryMean?.toFixed(1) || 0 }} Jt</p>
+                <p class="text-2xl font-bold text-slate-900">
+                  {{ summaryAnimated.salaryValidCount > 0 ? `Rp ${summaryAnimated.salaryMean.toFixed(1)} Jt` : '-' }}
+                </p>
+                <p v-if="summaryAnimated.salaryValidCount === 0" class="text-[10px] text-slate-400">Belum ada data valid</p>
               </div>
             </div>
           </div>
@@ -2566,8 +2605,12 @@ onUnmounted(() => {
               </div>
               <div>
                 <p class="text-xs font-medium text-slate-500">Rerata Masa Tunggu</p>
-                <p class="text-2xl font-bold text-slate-900">{{ summaryAnimated.waitMedian?.toFixed(1) || 0 }} Bulan</p>
-                <p class="text-[10px] text-slate-400">Median dari data valid</p>
+                <p class="text-2xl font-bold text-slate-900">
+                  {{ summaryAnimated.waitValidCount > 0 ? `${summaryAnimated.waitMean.toFixed(1)} Bulan` : '-' }}
+                </p>
+                <p class="text-[10px] text-slate-400">
+                  {{ summaryAnimated.waitValidCount > 0 ? `Mean dari ${summaryAnimated.waitValidCount} data valid` : 'Belum ada data valid' }}
+                </p>
               </div>
             </div>
           </div>

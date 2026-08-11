@@ -11,6 +11,7 @@ import { useAuth } from '../stores/auth'
 import { useAlumni } from '../stores/alumni'
 import LoadingOverlay from '../components/LoadingOverlay.vue'
 import { useUserManagement } from '../stores/userManagement'
+import { createAdminNavigation } from '../constants/adminNavigation'
 
 const { submissions } = useSubmissions()
 const { dashboard, fetchDashboardData } = useDashboardData()
@@ -186,33 +187,7 @@ onMounted(() => {
   })
 })
 
-const adminNav = [
-  { label: 'Ikhtisar', target: 'overview', icon: 'overview', permissionKey: 'ikhtisar' },
-  { label: 'Kuisioner', route: '/admin/kuisioner', icon: 'kuisioner', permissionKey: 'kuisioner' },
-  { label: 'Akreditasi tracer', route: '/admin/tracer-akreditasi', icon: 'akreditasi', permissionKey: 'kuisioner' },
-  { label: 'Laporan Tracer Study', route: '/admin/laporan-tracer', icon: 'laporan', centralOnly: true },
-  { label: 'Daftar alumni', route: '/admin/alumni', icon: 'alumni', permissionKey: 'alumni' },
-  { label: 'Konten Alumni', route: '/admin/alumni-hub', icon: 'alumni', permissionKey: 'alumni' },
-  { label: 'Bank soal', route: '/admin/bank-soal', icon: 'bank', permissionKey: 'bankSoal' },
-  { label: 'Popup Banner', route: '/admin/popup-banner', icon: 'cta', permissionKey: 'popupBanner' },
-  { label: 'CTA Slider', route: '/admin/cta', icon: 'cta', permissionKey: 'cta' },
-  { label: 'Kelola lowongan', route: '/admin/lowongan', icon: 'lowongan', permissionKey: 'lowongan' },
-  { label: 'Artikel & tips', route: '/admin/artikel', icon: 'artikel', permissionKey: 'artikel' },
-  {
-    label: 'User',
-    route: '/admin/user',
-    icon: 'user',
-    permissionKey: 'user',
-    children: [
-      { label: 'Tambah user', route: { path: '/admin/user', query: { tab: 'tambah' } }, permissionKey: 'user' },
-      { label: 'Role & Akses', route: { path: '/admin/user', query: { tab: 'role' } }, permissionKey: 'user' },
-      { label: 'Mapping Organisasi', route: { path: '/admin/user', query: { tab: 'mapping' } }, permissionKey: 'user' },
-      { label: 'Import/Export', route: { path: '/admin/user', query: { tab: 'import' } }, permissionKey: 'user' },
-      { label: 'Log Aktivitas', route: { path: '/admin/user', query: { tab: 'log' } }, permissionKey: 'user' },
-    ],
-  },
-  { label: 'Berita', route: '/admin/berita', icon: 'berita', permissionKey: 'berita' },
-]
+const adminNav = createAdminNavigation({ overviewTarget: true })
 const normalizeRole = (role) => String(role || '').trim().toLowerCase()
 const extractRoleLabel = (role) => {
   if (role && typeof role === 'object') {
@@ -1107,6 +1082,16 @@ const iconPaths = {
   alumni: [
     'M12 13c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z',
     'M5 19c0-3.31 3.13-5 7-5s7 1.69 7 5v1H5z',
+  ],
+  structure: [
+    'M12 5v4',
+    'M6 11h12',
+    'M6 11v3',
+    'M18 11v3',
+    'M12 9v5',
+    'M4 14h4v4H4z',
+    'M10 14h4v4h-4z',
+    'M16 14h4v4h-4z',
   ],
   bank: [
     'M4 8h16',
