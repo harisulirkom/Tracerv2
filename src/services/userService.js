@@ -1,7 +1,7 @@
 import { get, post, put, del, setAuthToken, clearAuthToken } from './api'
 
 export const login = async (credentials) => {
-  const data = await post('/login', credentials, {
+  const data = await post('/session/start', credentials, {
     timeout: 10000,
     skipAuthRedirect: true,
   })
